@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIF Lab — vidéo vers GIF animé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14181c;
+    --panel: #1b2129;
+    --panel-2: #212933;
+    --line: #2c3540;
+    --text: #e9edf0;
+    --muted: #8a97a3;
+    --amber: #ff9d3d;
+    --amber-dim: #a86a2c;
+    --teal: #4fd1c5;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c232c 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .tally{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 10px 2px rgba(255,157,61,.65);
+  }
+  h1{
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-weight:800;
+    font-size:28px;
+    letter-spacing:-0.02em;
+    margin:0;
+  }
+  header p{margin:2px 0 0;color:var(--muted);font-size:13.5px;}
+
+  .badge{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;color:var(--muted);
+    border:1px solid var(--line);
+    padding:5px 10px;border-radius:20px;
+    letter-spacing:.04em;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap:18px;
+  }
+  @media (max-width: 880px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+  }
+  .panel + .panel{margin-top:18px;}
+  .panel h2{
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-size:14px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;
+    color:var(--muted);
+    margin:0 0 14px;
+  }
+
+  /* --- drop / preview --- */
+  #dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius);
+    padding:24px;
+    text-align:center;
+    color:var(--muted);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    font-size:13.5px;
+  }
+  #dropzone.drag{border-color:var(--amber);background:rgba(255,157,61,.06);color:var(--text);}
+  #dropzone strong{color:var(--text);}
+
+  video, #outCanvasPreview{
+    width:100%;display:block;border-radius:8px;background:#000;
+  }
+  #videoBox{display:none;margin-top:14px;}
+
+  /* --- filmstrip timeline --- */
+  .filmstrip{
+    position:relative;
+    height:34px;
+    border-radius:6px;
+    margin:14px 0 6px;
+    background:
+      repeating-linear-gradient(90deg, #0e1216 0 8px, #171d23 8px 16px);
+    border:1px solid var(--line);
+    overflow:hidden;
+  }
+  .filmstrip::before, .filmstrip::after{
+    content:"";position:absolute;left:0;right:0;height:7px;
+    background-image: radial-gradient(circle, #0a0d10 2.6px, transparent 2.7px);
+    background-size:16px 100%;
+    background-repeat:repeat-x;
+  }
+  .filmstrip::before{top:1px;}
+  .filmstrip::after{bottom:1px;}
+  #trimHighlight{
+    position:absolute;top:8px;bottom:8px;
+    background:linear-gradient(90deg, rgba(255,157,61,.35), rgba(255,157,61,.55));
+    border-left:2px solid var(--amber);
+    border-right:2px solid var(--amber);
+  }
+
+  .dual-range{position:relative;height:24px;margin-top:2px;}
+  .dual-range input[type=range]{
+    position:absolute;left:0;right:0;top:0;
+    width:100%;margin:0;
+    -webkit-appearance:none;appearance:none;
+    background:transparent;pointer-events:none;
+    height:24px;
+  }
+  .dual-range input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;pointer-events:auto;
+    width:14px;height:14px;border-radius:50%;
+    background:var(--amber);border:2px solid #14181c;
+    cursor:pointer;margin-top:5px;
+  }
+  .dual-range input[type=range]::-moz-range-thumb{
+    pointer-events:auto;width:14px;height:14px;border-radius:50%;
+    background:var(--amber);border:2px solid #14181c;cursor:pointer;
+  }
+  .dual-range input[type=range]::-webkit-slider-runnable-track{background:transparent;}
+  .dual-range input[type=range]::-moz-range-track{background:transparent;}
+
+  .timecodes{
+    display:flex;justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
+    margin-top:4px;
+  }
+  .timecodes b{color:var(--teal);font-weight:600;}
+
+  /* --- controls --- */
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .field label{font-size:13px;color:var(--text);font-weight:500;}
+  .field .val{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--amber);
+    background:var(--panel-2);padding:2px 8px;border-radius:5px;border:1px solid var(--line);
+  }
+  input[type=range].plain{
+    -webkit-appearance:none;appearance:none;width:100%;height:4px;
+    border-radius:3px;background:var(--line);outline:none;
+  }
+  input[type=range].plain::-webkit-slider-thumb{
+    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+    background:var(--teal);cursor:pointer;margin-top:-5.5px;
+    box-shadow:0 0 0 3px rgba(79,209,197,.15);
+  }
+  input[type=range].plain::-moz-range-thumb{
+    width:15px;height:15px;border-radius:50%;background:var(--teal);border:none;cursor:pointer;
+  }
+
+  select, .toggle-row{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:9px 10px;
+    border-radius:7px;
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+  }
+
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+  .switch{position:relative;width:38px;height:21px;background:var(--line);border-radius:20px;transition:background .15s;flex-shrink:0;}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--text);transition:transform .15s;}
+  input[type=checkbox]{display:none;}
+  input[type=checkbox]:checked + .toggle-row .switch,
+  .toggle-row input[type=checkbox]:checked ~ .switch{background:var(--amber);}
+  label.toggle-row input[type=checkbox]:checked ~ .switch::after{transform:translateX(17px);}
+
+  .btn{
+    width:100%;
+    border:none;border-radius:8px;
+    padding:13px 16px;
+    font-family:'Bricolage Grotesque',sans-serif;
+    font-weight:700;font-size:14.5px;letter-spacing:.01em;
+    cursor:pointer;
+    background:var(--amber);color:#1a1206;
+    transition:transform .1s, opacity .15s;
+  }
+  .btn:hover{opacity:.92;}
+  .btn:active{transform:scale(.99);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
+
+  .progress-wrap{margin-top:12px;display:none;}
+  .progress-label{
+    display:flex;justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);margin-bottom:6px;
+  }
+  .progress-track{height:8px;background:var(--panel-2);border-radius:5px;overflow:hidden;border:1px solid var(--line);}
+  .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--teal));transition:width .12s;}
+
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .hint b{color:var(--text);}
+
+  #outputPanel{display:none;}
+  #gifResult{border-radius:8px;border:1px solid var(--line);width:100%;display:block;background:#000;}
+  .output-meta{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
+    margin:10px 0 12px;display:flex;gap:16px;flex-wrap:wrap;
+  }
+  .output-meta b{color:var(--teal);}
+
+  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:34px;font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="tally"></span>
+      <div>
+        <h1>GIF Lab</h1>
+        <p>Découpe une vidéo, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
+      </div>
+    </div>
+    <span class="badge">100% local · aucun envoi serveur</span>
+  </header>
+
+  <div class="grid">
+
+    <!-- LEFT: source + preview + trim -->
+    <div>
+      <div class="panel">
+        <h2>Source vidéo</h2>
+        <div id="dropzone">
+          <strong>Clique pour choisir une vidéo</strong> ou glisse-la ici<br>
+          MP4, WebM, MOV…
+        </div>
+        <input type="file" id="fileInput" accept="video/*" style="display:none">
+
+        <div id="videoBox">
+          <video id="video" controls muted playsinline></video>
+
+          <div class="filmstrip">
+            <div id="trimHighlight"></div>
+          </div>
+          <div class="dual-range">
+            <input type="range" id="rangeStart" min="0" max="100" value="0" step="0.1">
+            <input type="range" id="rangeEnd" min="0" max="100" value="100" step="0.1">
+          </div>
+          <div class="timecodes">
+            <span>Début : <b id="startLabel">0.0s</b></span>
+            <span>Durée sélection : <b id="durLabel">0.0s</b></span>
+            <span>Fin : <b id="endLabel">0.0s</b></span>
+          </div>
+          <div class="hint">Glisse les poignées ambrées pour choisir le passage à transformer en GIF.</div>
+        </div>
+      </div>
+
+      <div class="panel" id="outputPanel">
+        <h2>Résultat</h2>
+        <canvas id="workCanvas" style="display:none;"></canvas>
+        <img id="gifResult" alt="GIF généré">
+        <div class="output-meta">
+          <span>Poids : <b id="metaSize">—</b></span>
+          <span>Dimensions : <b id="metaDims">—</b></span>
+          <span>Images : <b id="metaFrames">—</b></span>
+        </div>
+        <a id="downloadBtn" class="btn" download="animation.gif" style="display:block;text-decoration:none;text-align:center;">Télécharger le GIF</a>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div class="panel">
+      <h2>Réglages</h2>
+
+      <div class="field">
+        <div class="field-row"><label>Vitesse de lecture</label><span class="val" id="speedVal">1×</span></div>
+        <input type="range" class="plain" id="speed" min="0.25" max="4" step="0.25" value="1">
+      </div>
+
+      <div class="field">
+        <div class="field-row"><label>Images par seconde (fps)</label><span class="val" id="fpsVal">12</span></div>
+        <input type="range" class="plain" id="fps" min="4" max="24" step="1" value="12">
+      </div>
+
+      <div class="field">
+        <div class="field-row"><label>Largeur de sortie</label></div>
+        <select id="widthSelect">
+          <option value="0">Originale</option>
+          <option value="640">640 px</option>
+          <option value="480" selected>480 px</option>
+          <option value="320">320 px</option>
+          <option value="240">240 px</option>
+          <option value="160">160 px</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="field-row"><label>Qualité (plus bas = mieux, plus lent)</label><span class="val" id="qualVal">10</span></div>
+        <input type="range" class="plain" id="quality" min="1" max="20" step="1" value="10">
+      </div>
+
+      <div class="field">
+        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+          <span>Boucle infinie</span>
+          <input type="checkbox" id="loopCheck" checked style="display:none;">
+          <span class="switch" id="loopSwitch"></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <button class="btn" id="convertBtn" disabled>Choisis d'abord une vidéo</button>
+      </div>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-label"><span id="progressStage">Capture des images…</span><span id="progressPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <p class="hint">Estimation : <b id="estFrames">—</b> images à extraire pour la sélection actuelle.</p>
+    </div>
+
+  </div>
+
+  <footer>GIF Lab — encodage GIF via gif.js, exécuté entièrement dans ton navigateur</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const video = document.getElementById('video');
+  const videoBox = document.getElementById('videoBox');
+  const rangeStart = document.getElementById('rangeStart');
+  const rangeEnd = document.getElementById('rangeEnd');
+  const trimHighlight = document.getElementById('trimHighlight');
+  const startLabel = document.getElementById('startLabel');
+  const endLabel = document.getElementById('endLabel');
+  const durLabel = document.getElementById('durLabel');
+  const speed = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  const fps = document.getElementById('fps');
+  const fpsVal = document.getElementById('fpsVal');
+  const widthSelect = document.getElementById('widthSelect');
+  const quality = document.getElementById('quality');
+  const qualVal = document.getElementById('qualVal');
+  const loopCheck = document.getElementById('loopCheck');
+  const loopSwitch = document.getElementById('loopSwitch');
+  const convertBtn = document.getElementById('convertBtn');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressStage = document.getElementById('progressStage');
+  const progressPct = document.getElementById('progressPct');
+  const progressFill = document.getElementById('progressFill');
+  const estFrames = document.getElementById('estFrames');
+  const outputPanel = document.getElementById('outputPanel');
+  const workCanvas = document.getElementById('workCanvas');
+  const gifResult = document.getElementById('gifResult');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const metaSize = document.getElementById('metaSize');
+  const metaDims = document.getElementById('metaDims');
+  const metaFrames = document.getElementById('metaFrames');
+
+  let duration = 0;
+  let objectUrl = null;
+
+  function fmt(t){ return t.toFixed(1) + 's'; }
+
+  // --- file loading ---
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(file){
+    if (!file.type.startsWith('video/')){ alert('Merci de choisir un fichier vidéo.'); return; }
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+    videoBox.style.display = 'block';
+    outputPanel.style.display = 'none';
+    convertBtn.disabled = true;
+    convertBtn.textContent = 'Chargement…';
+  }
+
+  video.addEventListener('loadedmetadata', () => {
+    duration = video.duration;
+    rangeStart.min = 0; rangeStart.max = duration; rangeStart.value = 0;
+    rangeEnd.min = 0; rangeEnd.max = duration; rangeEnd.value = duration;
+    updateTrimUI();
+    convertBtn.disabled = false;
+    convertBtn.textContent = 'Générer le GIF';
+  });
+
+  function updateTrimUI(){
+    let s = parseFloat(rangeStart.value);
+    let e = parseFloat(rangeEnd.value);
+    if (e - s < 0.2){
+      if (document.activeElement === rangeStart) rangeStart.value = Math.max(0, e - 0.2);
+      else rangeEnd.value = Math.min(duration, s + 0.2);
+      s = parseFloat(rangeStart.value); e = parseFloat(rangeEnd.value);
+    }
+    startLabel.textContent = fmt(s);
+    endLabel.textContent = fmt(e);
+    durLabel.textContent = fmt(e - s);
+    const pctS = duration ? (s / duration) * 100 : 0;
+    const pctE = duration ? (e / duration) * 100 : 100;
+    trimHighlight.style.left = pctS + '%';
+    trimHighlight.style.width = (pctE - pctS) + '%';
+    updateEstimate();
+  }
+  rangeStart.addEventListener('input', () => { video.currentTime = parseFloat(rangeStart.value); updateTrimUI(); });
+  rangeEnd.addEventListener('input', () => { video.currentTime = parseFloat(rangeEnd.value); updateTrimUI(); });
+
+  function updateEstimate(){
+    const s = parseFloat(rangeStart.value), e = parseFloat(rangeEnd.value);
+    const fpsV = parseFloat(fps.value), spd = parseFloat(speed.value);
+    const step = (1 / fpsV) * spd;
+    const n = step > 0 ? Math.max(1, Math.ceil((e - s) / step)) : 0;
+    estFrames.textContent = n + ' images';
+  }
+
+  speed.addEventListener('input', () => { speedVal.textContent = parseFloat(speed.value) + '×'; updateEstimate(); });
+  fps.addEventListener('input', () => { fpsVal.textContent = fps.value; updateEstimate(); });
+  quality.addEventListener('input', () => { qualVal.textContent = quality.value; });
+  loopCheck.addEventListener('change', () => { loopSwitch.style.background = loopCheck.checked ? 'var(--amber)' : 'var(--line)'; loopSwitch.style.setProperty('--x', loopCheck.checked ? '17px' : '0'); loopSwitch.querySelector && null; });
+  // manual switch visuals (checkbox is hidden, keep in sync)
+  function syncSwitch(){
+    loopSwitch.style.background = loopCheck.checked ? 'var(--amber)' : 'var(--line)';
+    loopSwitch.style.setProperty('--knob', loopCheck.checked ? '17px' : '0px');
+  }
+  loopSwitch.addEventListener('click', () => { loopCheck.checked = !loopCheck.checked; syncSwitch(); });
+  syncSwitch();
+  const styleKnob = document.createElement('style');
+  styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
+  document.head.appendChild(styleKnob);
+
+  // --- seek helper ---
+  function seekTo(t){
+    return new Promise(resolve => {
+      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+      video.addEventListener('seeked', onSeeked);
+      video.currentTime = t;
+      // fallback in case 'seeked' doesn't fire for identical times
+      setTimeout(resolve, 400);
+    });
+  }
+
+  convertBtn.addEventListener('click', async () => {
+    const s = parseFloat(rangeStart.value);
+    const e = parseFloat(rangeEnd.value);
+    const fpsV = parseInt(fps.value, 10);
+    const spd = parseFloat(speed.value);
+    const q = parseInt(quality.value, 10);
+    const loop = loopCheck.checked;
+    const targetW = parseInt(widthSelect.value, 10);
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    let outW = targetW > 0 ? targetW : vw;
+    let outH = Math.round(outW * (vh / vw));
+
+    workCanvas.width = outW;
+    workCanvas.height = outH;
+    const ctx = workCanvas.getContext('2d');
+
+    const step = (1 / fpsV) * spd;
+    const frameDelay = Math.max(20, Math.round(1000 / fpsV));
+    const times = [];
+    for (let t = s; t < e; t += step) times.push(t);
+    if (times.length === 0) times.push(s);
+
+    convertBtn.disabled = true;
+    convertBtn.textContent = 'Génération en cours…';
+    progressWrap.style.display = 'block';
+    progressStage.textContent = 'Capture des images…';
+    progressFill.style.width = '0%';
+    progressPct.textContent = '0%';
+    outputPanel.style.display = 'none';
+
+    const gif = new GIF({
+      workers: 3,
+      quality: q,
+      width: outW,
+      height: outH,
+      workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js',
+      repeat: loop ? 0 : -1
+    });
+
+    for (let i = 0; i < times.length; i++){
+      await seekTo(times[i]);
+      ctx.drawImage(video, 0, 0, outW, outH);
+      gif.addFrame(ctx, { copy: true, delay: frameDelay });
+      const pct = Math.round(((i + 1) / times.length) * 50);
+      progressFill.style.width = pct + '%';
+      progressPct.textContent = pct + '%';
+    }
+
+    progressStage.textContent = 'Encodage du GIF…';
+
+    gif.on('progress', p => {
+      const pct = 50 + Math.round(p * 50);
+      progressFill.style.width = pct + '%';
+      progressPct.textContent = pct + '%';
+    });
+
+    gif.on('finished', blob => {
+      const url = URL.createObjectURL(blob);
+      gifResult.src = url;
+      downloadBtn.href = url;
+      metaSize.textContent = (blob.size / 1024 / 1024 < 1)
+        ? Math.round(blob.size / 1024) + ' Ko'
+        : (blob.size / 1024 / 1024).toFixed(2) + ' Mo';
+      metaDims.textContent = outW + ' × ' + outH + ' px';
+      metaFrames.textContent = times.length;
+
+      outputPanel.style.display = 'block';
+      progressWrap.style.display = 'none';
+      convertBtn.disabled = false;
+      convertBtn.textContent = 'Générer le GIF';
+      outputPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    gif.render();
+  });
+
+  updateEstimate();
+</script>
+</body>
+</html>
