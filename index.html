@@ -62,6 +62,12 @@
     gap:18px;
   }
   @media (max-width: 880px){ .grid{grid-template-columns:1fr;} }
+  @media (max-width: 520px){
+    body{padding:16px 12px 40px;}
+    h1{font-size:22px;}
+    .panel{padding:14px;}
+    .badge{font-size:10px;padding:4px 8px;}
+  }
 
   .panel{
     background:var(--panel);
@@ -123,29 +129,32 @@
     border-right:2px solid var(--amber);
   }
 
-  .dual-range{position:relative;height:24px;margin-top:2px;}
+  .dual-range{position:relative;height:44px;margin-top:2px;}
   .dual-range input[type=range]{
     position:absolute;left:0;right:0;top:0;
     width:100%;margin:0;
     -webkit-appearance:none;appearance:none;
     background:transparent;pointer-events:none;
-    height:24px;
+    height:44px;
+    touch-action:pan-y;
   }
   .dual-range input[type=range]::-webkit-slider-thumb{
     -webkit-appearance:none;pointer-events:auto;
-    width:14px;height:14px;border-radius:50%;
-    background:var(--amber);border:2px solid #14181c;
-    cursor:pointer;margin-top:5px;
+    width:30px;height:30px;border-radius:50%;
+    background:var(--amber);border:3px solid #14181c;
+    cursor:pointer;margin-top:7px;
+    box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
   }
   .dual-range input[type=range]::-moz-range-thumb{
-    pointer-events:auto;width:14px;height:14px;border-radius:50%;
-    background:var(--amber);border:2px solid #14181c;cursor:pointer;
+    pointer-events:auto;width:30px;height:30px;border-radius:50%;
+    background:var(--amber);border:3px solid #14181c;cursor:pointer;
+    box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
   }
-  .dual-range input[type=range]::-webkit-slider-runnable-track{background:transparent;}
-  .dual-range input[type=range]::-moz-range-track{background:transparent;}
+  .dual-range input[type=range]::-webkit-slider-runnable-track{background:transparent;height:44px;}
+  .dual-range input[type=range]::-moz-range-track{background:transparent;height:44px;}
 
   .timecodes{
-    display:flex;justify-content:space-between;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;
     font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
     margin-top:4px;
   }
@@ -161,16 +170,25 @@
     background:var(--panel-2);padding:2px 8px;border-radius:5px;border:1px solid var(--line);
   }
   input[type=range].plain{
-    -webkit-appearance:none;appearance:none;width:100%;height:4px;
-    border-radius:3px;background:var(--line);outline:none;
+    -webkit-appearance:none;appearance:none;width:100%;height:36px;
+    background:transparent;outline:none;touch-action:pan-y;
+  }
+  input[type=range].plain::-webkit-slider-runnable-track{
+    height:6px;border-radius:3px;background:var(--line);
+  }
+  input[type=range].plain::-moz-range-track{
+    height:6px;border-radius:3px;background:var(--line);
   }
   input[type=range].plain::-webkit-slider-thumb{
-    -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
-    background:var(--teal);cursor:pointer;margin-top:-5.5px;
-    box-shadow:0 0 0 3px rgba(79,209,197,.15);
+    -webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+    background:var(--teal);cursor:pointer;margin-top:-10px;
+    border:3px solid #14181c;
+    box-shadow:0 0 0 1px var(--teal), 0 2px 6px rgba(0,0,0,.4);
   }
   input[type=range].plain::-moz-range-thumb{
-    width:15px;height:15px;border-radius:50%;background:var(--teal);border:none;cursor:pointer;
+    width:26px;height:26px;border-radius:50%;background:var(--teal);
+    border:3px solid #14181c;cursor:pointer;
+    box-shadow:0 0 0 1px var(--teal), 0 2px 6px rgba(0,0,0,.4);
   }
 
   select, .toggle-row{
@@ -206,6 +224,8 @@
   .btn:active{transform:scale(.99);}
   .btn:disabled{opacity:.45;cursor:not-allowed;}
   .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
+  .btn.secondary.active{background:var(--amber);color:#1a1206;border-color:var(--amber);}
+  #loopPreviewBtn{margin-top:12px;padding:12px 16px;font-size:13.5px;}
 
   .progress-wrap{margin-top:12px;display:none;}
   .progress-label{
@@ -270,7 +290,8 @@
             <span>Durée sélection : <b id="durLabel">0.0s</b></span>
             <span>Fin : <b id="endLabel">0.0s</b></span>
           </div>
-          <div class="hint">Glisse les poignées ambrées pour choisir le passage à transformer en GIF.</div>
+          <button class="btn secondary" id="loopPreviewBtn" type="button">▶ Lire la sélection en boucle</button>
+          <div class="hint">Glisse les poignées ambrées pour choisir le passage à transformer en GIF. La lecture en boucle permet de prévisualiser exactement le passage sélectionné.</div>
         </div>
       </div>
 
@@ -364,6 +385,7 @@
   const qualVal = document.getElementById('qualVal');
   const loopCheck = document.getElementById('loopCheck');
   const loopSwitch = document.getElementById('loopSwitch');
+  const loopPreviewBtn = document.getElementById('loopPreviewBtn');
   const convertBtn = document.getElementById('convertBtn');
   const progressWrap = document.getElementById('progressWrap');
   const progressStage = document.getElementById('progressStage');
@@ -380,6 +402,13 @@
 
   let duration = 0;
   let objectUrl = null;
+  let previewLoop = false;
+
+  function stopPreviewLoop(){
+    previewLoop = false;
+    loopPreviewBtn.classList.remove('active');
+    loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
+  }
 
   function fmt(t){ return t.toFixed(1) + 's'; }
 
@@ -398,6 +427,7 @@
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
+    stopPreviewLoop();
     videoBox.style.display = 'block';
     outputPanel.style.display = 'none';
     convertBtn.disabled = true;
@@ -456,6 +486,30 @@
   styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
   document.head.appendChild(styleKnob);
 
+  // --- lecture en boucle de la sélection ---
+  loopPreviewBtn.addEventListener('click', () => {
+    if (previewLoop){
+      stopPreviewLoop();
+      video.pause();
+      return;
+    }
+    previewLoop = true;
+    loopPreviewBtn.classList.add('active');
+    loopPreviewBtn.textContent = '⏸ Arrêter la boucle';
+    video.currentTime = parseFloat(rangeStart.value);
+    video.play();
+  });
+
+  video.addEventListener('timeupdate', () => {
+    if (!previewLoop) return;
+    const s = parseFloat(rangeStart.value);
+    const e = parseFloat(rangeEnd.value);
+    if (video.currentTime < s - 0.05 || video.currentTime >= e - 0.03){
+      video.currentTime = s;
+      video.play();
+    }
+  });
+
   // --- seek helper ---
   function seekTo(t){
     return new Promise(resolve => {
@@ -468,6 +522,8 @@
   }
 
   convertBtn.addEventListener('click', async () => {
+    stopPreviewLoop();
+    video.pause();
     const s = parseFloat(rangeStart.value);
     const e = parseFloat(rangeEnd.value);
     const fpsV = parseInt(fps.value, 10);
