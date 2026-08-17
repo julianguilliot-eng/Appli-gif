@@ -108,7 +108,7 @@
     position:relative;
     height:34px;
     border-radius:6px;
-    margin:14px 0 6px;
+    margin:14px 16px 6px;
     background:
       repeating-linear-gradient(90deg, #0e1216 0 8px, #171d23 8px 16px);
     border:1px solid var(--line);
@@ -129,7 +129,7 @@
     border-right:2px solid var(--amber);
   }
 
-  .dual-range{position:relative;height:44px;margin-top:2px;}
+  .dual-range{position:relative;height:44px;margin-top:2px;padding:0 16px;}
   .dual-range input[type=range]{
     position:absolute;left:0;right:0;top:0;
     width:100%;margin:0;
@@ -170,8 +170,9 @@
     background:var(--panel-2);padding:2px 8px;border-radius:5px;border:1px solid var(--line);
   }
   input[type=range].plain{
-    -webkit-appearance:none;appearance:none;width:100%;height:36px;
+    -webkit-appearance:none;appearance:none;width:calc(100% - 20px);height:36px;
     background:transparent;outline:none;touch-action:pan-y;
+    margin:0 10px;
   }
   input[type=range].plain::-webkit-slider-runnable-track{
     height:6px;border-radius:3px;background:var(--line);
@@ -406,6 +407,7 @@
 
   function stopPreviewLoop(){
     previewLoop = false;
+    seekingBack = false;
     loopPreviewBtn.classList.remove('active');
     loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
   }
@@ -487,6 +489,8 @@
   document.head.appendChild(styleKnob);
 
   // --- lecture en boucle de la sélection ---
+  let seekingBack = false;
+
   loopPreviewBtn.addEventListener('click', () => {
     if (previewLoop){
       stopPreviewLoop();
@@ -494,20 +498,27 @@
       return;
     }
     previewLoop = true;
+    seekingBack = false;
     loopPreviewBtn.classList.add('active');
     loopPreviewBtn.textContent = '⏸ Arrêter la boucle';
     video.currentTime = parseFloat(rangeStart.value);
-    video.play();
+    video.play().catch(() => {});
   });
 
   video.addEventListener('timeupdate', () => {
-    if (!previewLoop) return;
+    if (!previewLoop || seekingBack) return;
     const s = parseFloat(rangeStart.value);
     const e = parseFloat(rangeEnd.value);
-    if (video.currentTime < s - 0.05 || video.currentTime >= e - 0.03){
+    if (video.currentTime >= e - 0.05 || video.currentTime < s - 0.05){
+      seekingBack = true;
       video.currentTime = s;
-      video.play();
     }
+  });
+
+  video.addEventListener('seeked', () => {
+    if (!seekingBack) return;
+    seekingBack = false;
+    if (previewLoop) video.play().catch(() => {});
   });
 
   // --- seek helper ---
