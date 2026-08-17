@@ -129,29 +129,24 @@
     border-right:2px solid var(--amber);
   }
 
-  .dual-range{position:relative;height:44px;margin-top:2px;padding:0 16px;}
-  .dual-range input[type=range]{
-    position:absolute;left:0;right:0;top:0;
-    width:100%;margin:0;
-    -webkit-appearance:none;appearance:none;
-    background:transparent;pointer-events:none;
-    height:44px;
-    touch-action:pan-y;
+  .trim-track{position:relative;height:44px;margin:2px 0 0;padding:0 16px;}
+  .trim-handle{
+    position:absolute;top:0;
+    width:44px;height:44px;margin-left:-22px;
+    display:flex;align-items:center;justify-content:center;
+    touch-action:none;
+    cursor:grab;
+    z-index:2;
   }
-  .dual-range input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;pointer-events:auto;
-    width:30px;height:30px;border-radius:50%;
+  .trim-handle:active, .trim-handle.active{cursor:grabbing;z-index:3;}
+  .trim-handle .handle-dot{
+    width:28px;height:28px;border-radius:50%;
     background:var(--amber);border:3px solid #14181c;
-    cursor:pointer;margin-top:7px;
     box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
+    pointer-events:none;
+    transition:transform .1s;
   }
-  .dual-range input[type=range]::-moz-range-thumb{
-    pointer-events:auto;width:30px;height:30px;border-radius:50%;
-    background:var(--amber);border:3px solid #14181c;cursor:pointer;
-    box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
-  }
-  .dual-range input[type=range]::-webkit-slider-runnable-track{background:transparent;height:44px;}
-  .dual-range input[type=range]::-moz-range-track{background:transparent;height:44px;}
+  .trim-handle.active .handle-dot{transform:scale(1.12);}
 
   .timecodes{
     display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;
@@ -282,9 +277,9 @@
           <div class="filmstrip">
             <div id="trimHighlight"></div>
           </div>
-          <div class="dual-range">
-            <input type="range" id="rangeStart" min="0" max="100" value="0" step="0.1">
-            <input type="range" id="rangeEnd" min="0" max="100" value="100" step="0.1">
+          <div class="trim-track" id="trimTrack">
+            <div class="trim-handle" id="handleStart" aria-label="Début de la sélection"><span class="handle-dot"></span></div>
+            <div class="trim-handle" id="handleEnd" aria-label="Fin de la sélection"><span class="handle-dot"></span></div>
           </div>
           <div class="timecodes">
             <span>Début : <b id="startLabel">0.0s</b></span>
@@ -371,8 +366,9 @@
   const fileInput = document.getElementById('fileInput');
   const video = document.getElementById('video');
   const videoBox = document.getElementById('videoBox');
-  const rangeStart = document.getElementById('rangeStart');
-  const rangeEnd = document.getElementById('rangeEnd');
+  const trimTrack = document.getElementById('trimTrack');
+  const handleStart = document.getElementById('handleStart');
+  const handleEnd = document.getElementById('handleEnd');
   const trimHighlight = document.getElementById('trimHighlight');
   const startLabel = document.getElementById('startLabel');
   const endLabel = document.getElementById('endLabel');
@@ -404,10 +400,13 @@
   let duration = 0;
   let objectUrl = null;
   let previewLoop = false;
+  let trimStart = 0;
+  let trimEnd = 0;
 
   function stopPreviewLoop(){
     previewLoop = false;
     seekingBack = false;
+    video.playbackRate = 1;
     loopPreviewBtn.classList.remove('active');
     loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
   }
@@ -438,42 +437,75 @@
 
   video.addEventListener('loadedmetadata', () => {
     duration = video.duration;
-    rangeStart.min = 0; rangeStart.max = duration; rangeStart.value = 0;
-    rangeEnd.min = 0; rangeEnd.max = duration; rangeEnd.value = duration;
+    trimStart = 0;
+    trimEnd = duration;
     updateTrimUI();
     convertBtn.disabled = false;
     convertBtn.textContent = 'Générer le GIF';
   });
 
   function updateTrimUI(){
-    let s = parseFloat(rangeStart.value);
-    let e = parseFloat(rangeEnd.value);
-    if (e - s < 0.2){
-      if (document.activeElement === rangeStart) rangeStart.value = Math.max(0, e - 0.2);
-      else rangeEnd.value = Math.min(duration, s + 0.2);
-      s = parseFloat(rangeStart.value); e = parseFloat(rangeEnd.value);
-    }
-    startLabel.textContent = fmt(s);
-    endLabel.textContent = fmt(e);
-    durLabel.textContent = fmt(e - s);
-    const pctS = duration ? (s / duration) * 100 : 0;
-    const pctE = duration ? (e / duration) * 100 : 100;
+    startLabel.textContent = fmt(trimStart);
+    endLabel.textContent = fmt(trimEnd);
+    durLabel.textContent = fmt(trimEnd - trimStart);
+    const pctS = duration ? (trimStart / duration) * 100 : 0;
+    const pctE = duration ? (trimEnd / duration) * 100 : 100;
     trimHighlight.style.left = pctS + '%';
     trimHighlight.style.width = (pctE - pctS) + '%';
+    handleStart.style.left = pctS + '%';
+    handleEnd.style.left = pctE + '%';
     updateEstimate();
   }
-  rangeStart.addEventListener('input', () => { video.currentTime = parseFloat(rangeStart.value); updateTrimUI(); });
-  rangeEnd.addEventListener('input', () => { video.currentTime = parseFloat(rangeEnd.value); updateTrimUI(); });
+
+  // --- glisser-déposer des poignées (pointer events : souris, tactile, stylet) ---
+  function attachHandleDrag(handle, isStart){
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add('active');
+
+      const onMove = ev => {
+        if (!duration) return;
+        const rect = trimTrack.getBoundingClientRect();
+        let ratio = (ev.clientX - rect.left) / rect.width;
+        ratio = Math.min(1, Math.max(0, ratio));
+        let t = ratio * duration;
+        if (isStart){
+          trimStart = Math.min(t, trimEnd - 0.2 < 0 ? 0 : trimEnd - 0.2);
+          trimStart = Math.max(0, trimStart);
+        } else {
+          trimEnd = Math.max(t, trimStart + 0.2);
+          trimEnd = Math.min(duration, trimEnd);
+        }
+        video.currentTime = isStart ? trimStart : trimEnd;
+        updateTrimUI();
+      };
+      const onUp = ev => {
+        handle.classList.remove('active');
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+      };
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    });
+  }
+  attachHandleDrag(handleStart, true);
+  attachHandleDrag(handleEnd, false);
 
   function updateEstimate(){
-    const s = parseFloat(rangeStart.value), e = parseFloat(rangeEnd.value);
     const fpsV = parseFloat(fps.value), spd = parseFloat(speed.value);
     const step = (1 / fpsV) * spd;
-    const n = step > 0 ? Math.max(1, Math.ceil((e - s) / step)) : 0;
+    const n = step > 0 ? Math.max(1, Math.ceil((trimEnd - trimStart) / step)) : 0;
     estFrames.textContent = n + ' images';
   }
 
-  speed.addEventListener('input', () => { speedVal.textContent = parseFloat(speed.value) + '×'; updateEstimate(); });
+  speed.addEventListener('input', () => {
+    speedVal.textContent = parseFloat(speed.value) + '×';
+    updateEstimate();
+    if (previewLoop) video.playbackRate = parseFloat(speed.value);
+  });
   fps.addEventListener('input', () => { fpsVal.textContent = fps.value; updateEstimate(); });
   quality.addEventListener('input', () => { qualVal.textContent = quality.value; });
   loopCheck.addEventListener('change', () => { loopSwitch.style.background = loopCheck.checked ? 'var(--amber)' : 'var(--line)'; loopSwitch.style.setProperty('--x', loopCheck.checked ? '17px' : '0'); loopSwitch.querySelector && null; });
@@ -501,24 +533,26 @@
     seekingBack = false;
     loopPreviewBtn.classList.add('active');
     loopPreviewBtn.textContent = '⏸ Arrêter la boucle';
-    video.currentTime = parseFloat(rangeStart.value);
+    video.playbackRate = parseFloat(speed.value);
+    video.currentTime = trimStart;
     video.play().catch(() => {});
   });
 
   video.addEventListener('timeupdate', () => {
     if (!previewLoop || seekingBack) return;
-    const s = parseFloat(rangeStart.value);
-    const e = parseFloat(rangeEnd.value);
-    if (video.currentTime >= e - 0.05 || video.currentTime < s - 0.05){
+    if (video.currentTime >= trimEnd - 0.05 || video.currentTime < trimStart - 0.05){
       seekingBack = true;
-      video.currentTime = s;
+      video.currentTime = trimStart;
     }
   });
 
   video.addEventListener('seeked', () => {
     if (!seekingBack) return;
     seekingBack = false;
-    if (previewLoop) video.play().catch(() => {});
+    if (previewLoop){
+      video.playbackRate = parseFloat(speed.value);
+      video.play().catch(() => {});
+    }
   });
 
   // --- seek helper ---
@@ -535,8 +569,8 @@
   convertBtn.addEventListener('click', async () => {
     stopPreviewLoop();
     video.pause();
-    const s = parseFloat(rangeStart.value);
-    const e = parseFloat(rangeEnd.value);
+    const s = trimStart;
+    const e = trimEnd;
     const fpsV = parseInt(fps.value, 10);
     const spd = parseFloat(speed.value);
     const q = parseInt(quality.value, 10);
