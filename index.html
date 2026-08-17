@@ -2,10 +2,10 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>GIF Lab — vidéo vers GIF animé</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg: #14181c;
@@ -13,13 +13,12 @@
     --panel-2: #212933;
     --line: #2c3540;
     --text: #e9edf0;
-    --muted: #8a97a3;
+    --muted: #96a2ad;
     --amber: #ff9d3d;
-    --amber-dim: #a86a2c;
     --teal: #4fd1c5;
-    --radius: 10px;
+    --radius: 12px;
   }
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
   body{
     background:
@@ -27,47 +26,40 @@
       var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
+    font-size:16px;
     min-height:100vh;
-    padding:28px 20px 60px;
+    padding:18px 16px 60px;
+    touch-action:manipulation;
   }
   .wrap{max-width:1120px;margin:0 auto;}
 
-  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+  header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
   .brand{display:flex;align-items:center;gap:12px;}
   .tally{
-    width:12px;height:12px;border-radius:50%;
+    width:13px;height:13px;border-radius:50%;flex-shrink:0;
     background:var(--amber);
     box-shadow:0 0 10px 2px rgba(255,157,61,.65);
   }
   h1{
     font-family:'Bricolage Grotesque',sans-serif;
     font-weight:800;
-    font-size:28px;
+    font-size:26px;
     letter-spacing:-0.02em;
     margin:0;
   }
-  header p{margin:2px 0 0;color:var(--muted);font-size:13.5px;}
+  header p{margin:4px 0 0;color:var(--muted);font-size:14px;line-height:1.4;}
 
   .badge{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;color:var(--muted);
     border:1px solid var(--line);
-    padding:5px 10px;border-radius:20px;
+    padding:6px 10px;border-radius:20px;
     letter-spacing:.04em;
+    white-space:nowrap;
   }
 
-  .grid{
-    display:grid;
-    grid-template-columns: 1.15fr 1fr;
-    gap:18px;
-  }
-  @media (max-width: 880px){ .grid{grid-template-columns:1fr;} }
-  @media (max-width: 520px){
-    body{padding:16px 12px 40px;}
-    h1{font-size:22px;}
-    .panel{padding:14px;}
-    .badge{font-size:10px;padding:4px 8px;}
-  }
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media (min-width: 880px){ .grid{grid-template-columns: 1.15fr 1fr;} }
 
   .panel{
     background:var(--panel);
@@ -75,146 +67,155 @@
     border-radius:var(--radius);
     padding:18px;
   }
-  .panel + .panel{margin-top:18px;}
+  .panel + .panel{margin-top:16px;}
   .panel h2{
     font-family:'Bricolage Grotesque',sans-serif;
     font-size:14px;font-weight:700;
     text-transform:uppercase;letter-spacing:.06em;
     color:var(--muted);
-    margin:0 0 14px;
+    margin:0 0 16px;
   }
 
   /* --- drop / preview --- */
   #dropzone{
-    border:1.5px dashed var(--line);
+    border:2px dashed var(--line);
     border-radius:var(--radius);
-    padding:24px;
+    padding:30px 20px;
     text-align:center;
     color:var(--muted);
     cursor:pointer;
     transition:border-color .15s, background .15s;
-    font-size:13.5px;
+    font-size:15px;
+    line-height:1.6;
   }
   #dropzone.drag{border-color:var(--amber);background:rgba(255,157,61,.06);color:var(--text);}
-  #dropzone strong{color:var(--text);}
+  #dropzone strong{color:var(--text);display:block;font-size:16px;margin-bottom:2px;}
 
-  video, #outCanvasPreview{
-    width:100%;display:block;border-radius:8px;background:#000;
-  }
-  #videoBox{display:none;margin-top:14px;}
+  video{width:100%;display:block;border-radius:10px;background:#000;}
+  #videoBox{display:none;margin-top:16px;}
 
-  /* --- filmstrip timeline --- */
-  .filmstrip{
-    position:relative;
-    height:34px;
-    border-radius:6px;
-    margin:14px 24px 6px;
-    background:
-      repeating-linear-gradient(90deg, #0e1216 0 8px, #171d23 8px 16px);
-    border:1px solid var(--line);
-    overflow:hidden;
-  }
-  .filmstrip::before, .filmstrip::after{
-    content:"";position:absolute;left:0;right:0;height:7px;
-    background-image: radial-gradient(circle, #0a0d10 2.6px, transparent 2.7px);
-    background-size:16px 100%;
-    background-repeat:repeat-x;
-  }
-  .filmstrip::before{top:1px;}
-  .filmstrip::after{bottom:1px;}
-  #trimHighlight{
-    position:absolute;top:8px;bottom:8px;
-    background:linear-gradient(90deg, rgba(255,157,61,.35), rgba(255,157,61,.55));
-    border-left:2px solid var(--amber);
-    border-right:2px solid var(--amber);
-  }
+  /* --- lecteur boucle --- */
+  #loopPreviewBtn{margin-top:14px;padding:16px;font-size:16px;min-height:52px;}
 
+  /* --- duration readout --- */
+  .duration-readout{
+    margin-top:18px;
+    text-align:center;
+  }
+  .duration-readout .big{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:34px;font-weight:700;color:var(--amber);
+    letter-spacing:-0.01em;
+    line-height:1.1;
+  }
+  .duration-readout .sub{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;color:var(--muted);margin-top:4px;
+  }
+  .duration-readout .sub b{color:var(--teal);font-weight:600;}
+
+  /* --- trim track (style iOS : vignettes + poignées) --- */
+  .trim-wrap{padding:0 20px;margin-top:14px;}
   .trim-track{
-    position:relative;height:56px;margin:2px 0 0;padding:0 24px;
-    touch-action:none;cursor:pointer;
-    -webkit-tap-highlight-color:transparent;
+    position:relative;
+    height:60px;
+    touch-action:none;
+    cursor:pointer;
   }
-  .trim-handle{
-    position:absolute;top:0;
-    width:44px;height:56px;margin-left:-22px;
+  .thumb-mask{
+    position:absolute;inset:0;
+    border-radius:9px;overflow:hidden;
+    background:
+      repeating-linear-gradient(90deg,#12171c 0 10px,#171d23 10px 20px);
+  }
+  .thumb-strip{display:flex;width:100%;height:100%;}
+  .thumb-strip img{flex:1 1 0;width:0;height:100%;object-fit:cover;display:block;}
+  .thumb-mask.loading::after{
+    content:"Chargement des vignettes…";
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+    background:rgba(11,14,17,.55);
+  }
+  .dim{position:absolute;top:0;bottom:0;background:rgba(9,12,15,.72);pointer-events:none;}
+  .select-box{
+    position:absolute;top:-6px;bottom:-6px;
+    border-top:3px solid var(--amber);border-bottom:3px solid var(--amber);
+    box-sizing:border-box;pointer-events:none;
+    box-shadow:0 0 0 100vmax rgba(0,0,0,0); /* placeholder, no-op safe */
+  }
+  .grip{
+    position:absolute;top:-6px;bottom:-6px;
+    width:26px;border-radius:7px;background:var(--amber);
     display:flex;align-items:center;justify-content:center;
     pointer-events:none;
+    box-shadow:0 2px 8px rgba(0,0,0,.5);
   }
-  .trim-handle .handle-dot{
-    width:26px;height:26px;border-radius:50%;
-    background:var(--amber);border:3px solid #14181c;
-    box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
-    transition:transform .1s, box-shadow .1s;
-  }
-  .trim-handle.active .handle-dot{
-    transform:scale(1.25);
-    box-shadow:0 0 0 1px var(--amber), 0 0 0 6px rgba(255,157,61,.25), 0 2px 6px rgba(0,0,0,.4);
-  }
-
-  .timecodes{
-    display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
-    margin-top:4px;
-  }
-  .timecodes b{color:var(--teal);font-weight:600;}
+  .grip::after{content:"";width:4px;height:22px;border-radius:2px;background:#1a1206;opacity:.55;}
+  .grip-start{left:-6px;}
+  .grip-end{right:-6px;}
+  .trim-track.active .grip{background:#ffb266;}
+  .trim-track.active .select-box{border-color:#ffb266;}
 
   /* --- controls --- */
-  .field{margin-bottom:16px;}
+  .field{margin-bottom:22px;}
   .field:last-child{margin-bottom:0;}
-  .field-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-  .field label{font-size:13px;color:var(--text);font-weight:500;}
+  .field-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+  .field label{font-size:15px;color:var(--text);font-weight:600;}
   .field .val{
-    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--amber);
-    background:var(--panel-2);padding:2px 8px;border-radius:5px;border:1px solid var(--line);
-  }
-  input[type=range].plain{
-    -webkit-appearance:none;appearance:none;width:calc(100% - 20px);height:36px;
-    background:transparent;outline:none;touch-action:pan-y;
-    margin:0 10px;
-  }
-  input[type=range].plain::-webkit-slider-runnable-track{
-    height:6px;border-radius:3px;background:var(--line);
-  }
-  input[type=range].plain::-moz-range-track{
-    height:6px;border-radius:3px;background:var(--line);
-  }
-  input[type=range].plain::-webkit-slider-thumb{
-    -webkit-appearance:none;width:26px;height:26px;border-radius:50%;
-    background:var(--teal);cursor:pointer;margin-top:-10px;
-    border:3px solid #14181c;
-    box-shadow:0 0 0 1px var(--teal), 0 2px 6px rgba(0,0,0,.4);
-  }
-  input[type=range].plain::-moz-range-thumb{
-    width:26px;height:26px;border-radius:50%;background:var(--teal);
-    border:3px solid #14181c;cursor:pointer;
-    box-shadow:0 0 0 1px var(--teal), 0 2px 6px rgba(0,0,0,.4);
+    font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;color:var(--amber);
+    background:var(--panel-2);padding:4px 10px;border-radius:6px;border:1px solid var(--line);
+    white-space:nowrap;
   }
 
-  select, .toggle-row{
+  input[type=range].plain{
+    -webkit-appearance:none;appearance:none;width:100%;height:48px;
+    background:transparent;outline:none;touch-action:none;
+    margin:0;
+  }
+  input[type=range].plain::-webkit-slider-runnable-track{
+    height:8px;border-radius:4px;background:var(--line);
+  }
+  input[type=range].plain::-moz-range-track{
+    height:8px;border-radius:4px;background:var(--line);
+  }
+  input[type=range].plain::-webkit-slider-thumb{
+    -webkit-appearance:none;width:32px;height:32px;border-radius:50%;
+    background:var(--teal);cursor:pointer;margin-top:-12px;
+    border:4px solid #14181c;
+    box-shadow:0 0 0 1px var(--teal), 0 2px 8px rgba(0,0,0,.5);
+  }
+  input[type=range].plain::-moz-range-thumb{
+    width:32px;height:32px;border-radius:50%;background:var(--teal);
+    border:4px solid #14181c;cursor:pointer;
+    box-shadow:0 0 0 1px var(--teal), 0 2px 8px rgba(0,0,0,.5);
+  }
+
+  select{
     width:100%;
     background:var(--panel-2);
     border:1px solid var(--line);
     color:var(--text);
-    padding:9px 10px;
-    border-radius:7px;
+    padding:14px 12px;
+    border-radius:9px;
     font-family:'Inter',sans-serif;
-    font-size:13.5px;
+    font-size:16px;
+    min-height:50px;
   }
 
-  .toggle-row{display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
-  .switch{position:relative;width:38px;height:21px;background:var(--line);border-radius:20px;transition:background .15s;flex-shrink:0;}
-  .switch::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:var(--text);transition:transform .15s;}
+  label.toggle-row{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0;}
+  label.toggle-row span:first-child{font-size:15px;font-weight:600;}
+  .switch{position:relative;width:52px;height:30px;background:var(--line);border-radius:20px;transition:background .15s;flex-shrink:0;}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--text);transition:transform .15s;}
   input[type=checkbox]{display:none;}
-  input[type=checkbox]:checked + .toggle-row .switch,
-  .toggle-row input[type=checkbox]:checked ~ .switch{background:var(--amber);}
-  label.toggle-row input[type=checkbox]:checked ~ .switch::after{transform:translateX(17px);}
 
   .btn{
     width:100%;
-    border:none;border-radius:8px;
-    padding:13px 16px;
+    border:none;border-radius:10px;
+    padding:16px 16px;
+    min-height:54px;
     font-family:'Bricolage Grotesque',sans-serif;
-    font-weight:700;font-size:14.5px;letter-spacing:.01em;
+    font-weight:700;font-size:16px;letter-spacing:.01em;
     cursor:pointer;
     background:var(--amber);color:#1a1206;
     transition:transform .1s, opacity .15s;
@@ -224,28 +225,28 @@
   .btn:disabled{opacity:.45;cursor:not-allowed;}
   .btn.secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--line);}
   .btn.secondary.active{background:var(--amber);color:#1a1206;border-color:var(--amber);}
-  #loopPreviewBtn{margin-top:12px;padding:12px 16px;font-size:13.5px;}
 
-  .progress-wrap{margin-top:12px;display:none;}
+  .progress-wrap{margin-top:14px;display:none;}
   .progress-label{
     display:flex;justify-content:space-between;
-    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);margin-bottom:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--muted);margin-bottom:8px;
   }
-  .progress-track{height:8px;background:var(--panel-2);border-radius:5px;overflow:hidden;border:1px solid var(--line);}
+  .progress-track{height:10px;background:var(--panel-2);border-radius:6px;overflow:hidden;border:1px solid var(--line);}
   .progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--teal));transition:width .12s;}
+  .progress-error{display:none;margin-top:10px;font-size:13.5px;color:#ff8a80;line-height:1.5;}
 
-  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;}
+  .hint{font-size:13px;color:var(--muted);margin-top:12px;line-height:1.55;}
   .hint b{color:var(--text);}
 
   #outputPanel{display:none;}
-  #gifResult{border-radius:8px;border:1px solid var(--line);width:100%;display:block;background:#000;}
+  #gifResult{border-radius:10px;border:1px solid var(--line);width:100%;display:block;background:#000;}
   .output-meta{
-    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);
-    margin:10px 0 12px;display:flex;gap:16px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--muted);
+    margin:12px 0 14px;display:flex;gap:16px;flex-wrap:wrap;
   }
   .output-meta b{color:var(--teal);}
 
-  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:34px;font-family:'IBM Plex Mono',monospace;}
+  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:30px;font-family:'IBM Plex Mono',monospace;}
 </style>
 </head>
 <body>
@@ -256,10 +257,10 @@
       <span class="tally"></span>
       <div>
         <h1>GIF Lab</h1>
-        <p>Découpe une vidéo, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
+        <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · aucun envoi serveur</span>
+    <span class="badge">100% local</span>
   </header>
 
   <div class="grid">
@@ -269,28 +270,35 @@
       <div class="panel">
         <h2>Source vidéo</h2>
         <div id="dropzone">
-          <strong>Clique pour choisir une vidéo</strong> ou glisse-la ici<br>
-          MP4, WebM, MOV…
+          <strong>Choisir une vidéo</strong>
+          ou glisse-la ici · MP4, WebM, MOV…
         </div>
         <input type="file" id="fileInput" accept="video/*" style="display:none">
 
         <div id="videoBox">
           <video id="video" controls muted playsinline></video>
 
-          <div class="filmstrip">
-            <div id="trimHighlight"></div>
-          </div>
-          <div class="trim-track" id="trimTrack">
-            <div class="trim-handle" id="handleStart" aria-label="Début de la sélection"><span class="handle-dot"></span></div>
-            <div class="trim-handle" id="handleEnd" aria-label="Fin de la sélection"><span class="handle-dot"></span></div>
-          </div>
-          <div class="timecodes">
-            <span>Début : <b id="startLabel">0.0s</b></span>
-            <span>Durée sélection : <b id="durLabel">0.0s</b></span>
-            <span>Fin : <b id="endLabel">0.0s</b></span>
-          </div>
           <button class="btn secondary" id="loopPreviewBtn" type="button">▶ Lire la sélection en boucle</button>
-          <div class="hint">Glisse les poignées ambrées pour choisir le passage à transformer en GIF. La lecture en boucle permet de prévisualiser exactement le passage sélectionné.</div>
+
+          <div class="duration-readout">
+            <div class="big" id="durLabel">0.0s</div>
+            <div class="sub">de <b id="startLabel">0.0s</b> à <b id="endLabel">0.0s</b></div>
+          </div>
+
+          <div class="trim-wrap">
+            <div class="trim-track" id="trimTrack">
+              <div class="thumb-mask loading" id="thumbMask">
+                <div class="thumb-strip" id="thumbStrip"></div>
+              </div>
+              <div class="dim" id="dimLeft"></div>
+              <div class="dim" id="dimRight"></div>
+              <div class="select-box" id="selectBox">
+                <div class="grip grip-start"></div>
+                <div class="grip grip-end"></div>
+              </div>
+            </div>
+          </div>
+          <div class="hint">Pose le doigt n'importe où sur la barre et glisse pour ajuster le début ou la fin.</div>
         </div>
       </div>
 
@@ -339,9 +347,9 @@
       </div>
 
       <div class="field">
-        <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+        <label class="toggle-row" id="loopToggleRow">
           <span>Boucle infinie</span>
-          <input type="checkbox" id="loopCheck" checked style="display:none;">
+          <input type="checkbox" id="loopCheck" checked>
           <span class="switch" id="loopSwitch"></span>
         </label>
       </div>
@@ -353,6 +361,7 @@
       <div class="progress-wrap" id="progressWrap">
         <div class="progress-label"><span id="progressStage">Capture des images…</span><span id="progressPct">0%</span></div>
         <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-error" id="progressError"></div>
       </div>
 
       <p class="hint">Estimation : <b id="estFrames">—</b> images à extraire pour la sélection actuelle.</p>
@@ -370,9 +379,11 @@
   const video = document.getElementById('video');
   const videoBox = document.getElementById('videoBox');
   const trimTrack = document.getElementById('trimTrack');
-  const handleStart = document.getElementById('handleStart');
-  const handleEnd = document.getElementById('handleEnd');
-  const trimHighlight = document.getElementById('trimHighlight');
+  const thumbMask = document.getElementById('thumbMask');
+  const thumbStrip = document.getElementById('thumbStrip');
+  const dimLeft = document.getElementById('dimLeft');
+  const dimRight = document.getElementById('dimRight');
+  const selectBox = document.getElementById('selectBox');
   const startLabel = document.getElementById('startLabel');
   const endLabel = document.getElementById('endLabel');
   const durLabel = document.getElementById('durLabel');
@@ -391,6 +402,7 @@
   const progressStage = document.getElementById('progressStage');
   const progressPct = document.getElementById('progressPct');
   const progressFill = document.getElementById('progressFill');
+  const progressError = document.getElementById('progressError');
   const estFrames = document.getElementById('estFrames');
   const outputPanel = document.getElementById('outputPanel');
   const workCanvas = document.getElementById('workCanvas');
@@ -405,15 +417,6 @@
   let previewLoop = false;
   let trimStart = 0;
   let trimEnd = 0;
-
-  function stopPreviewLoop(){
-    previewLoop = false;
-    if (loopRafId) cancelAnimationFrame(loopRafId);
-    loopRafId = null;
-    video.playbackRate = 1;
-    loopPreviewBtn.classList.remove('active');
-    loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
-  }
 
   function fmt(t){ return t.toFixed(1) + 's'; }
 
@@ -433,6 +436,8 @@
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     stopPreviewLoop();
+    thumbStrip.innerHTML = '';
+    thumbMask.classList.add('loading');
     videoBox.style.display = 'block';
     outputPanel.style.display = 'none';
     convertBtn.disabled = true;
@@ -446,6 +451,7 @@
     updateTrimUI();
     convertBtn.disabled = false;
     convertBtn.textContent = 'Générer le GIF';
+    generateThumbnails();
   });
 
   function updateTrimUI(){
@@ -454,11 +460,36 @@
     durLabel.textContent = fmt(trimEnd - trimStart);
     const pctS = duration ? (trimStart / duration) * 100 : 0;
     const pctE = duration ? (trimEnd / duration) * 100 : 100;
-    trimHighlight.style.left = pctS + '%';
-    trimHighlight.style.width = (pctE - pctS) + '%';
-    handleStart.style.left = pctS + '%';
-    handleEnd.style.left = pctE + '%';
+    dimLeft.style.left = '0%';
+    dimLeft.style.width = pctS + '%';
+    dimRight.style.left = pctE + '%';
+    dimRight.style.width = (100 - pctE) + '%';
+    selectBox.style.left = pctS + '%';
+    selectBox.style.width = Math.max(0, pctE - pctS) + '%';
     updateEstimate();
+  }
+
+  // --- vignettes de la vidéo (façon barre de découpe iPhone) ---
+  async function generateThumbnails(){
+    const N = 10;
+    const tw = 96, th = 64;
+    const tCanvas = document.createElement('canvas');
+    tCanvas.width = tw; tCanvas.height = th;
+    const tctx = tCanvas.getContext('2d');
+    const wasTime = video.currentTime;
+    thumbStrip.innerHTML = '';
+    try {
+      for (let i = 0; i < N; i++){
+        const t = (duration * (i + 0.5)) / N;
+        await seekTo(t);
+        tctx.drawImage(video, 0, 0, tw, th);
+        const img = document.createElement('img');
+        img.src = tCanvas.toDataURL('image/jpeg', 0.6);
+        thumbStrip.appendChild(img);
+      }
+    } catch (err) { /* pas grave, on garde le fond décoratif */ }
+    thumbMask.classList.remove('loading');
+    video.currentTime = wasTime;
   }
 
   // --- glisser sur la piste : on attrape la poignée la plus proche, où que le doigt touche ---
@@ -483,18 +514,13 @@
     updateTrimUI();
   }
 
-  function setActiveHandleVisual(){
-    handleStart.classList.toggle('active', activeHandle === 'start');
-    handleEnd.classList.toggle('active', activeHandle === 'end');
-  }
-
   trimTrack.addEventListener('pointerdown', e => {
     if (!duration) return;
     e.preventDefault();
     trimTrack.setPointerCapture(e.pointerId);
     const t = ratioToTime(e.clientX);
     activeHandle = Math.abs(t - trimStart) <= Math.abs(t - trimEnd) ? 'start' : 'end';
-    setActiveHandleVisual();
+    trimTrack.classList.add('active');
     moveActiveHandle(t);
   });
   trimTrack.addEventListener('pointermove', e => {
@@ -504,7 +530,7 @@
   });
   function releaseHandle(){
     activeHandle = null;
-    setActiveHandleVisual();
+    trimTrack.classList.remove('active');
   }
   trimTrack.addEventListener('pointerup', releaseHandle);
   trimTrack.addEventListener('pointercancel', releaseHandle);
@@ -523,13 +549,12 @@
   });
   fps.addEventListener('input', () => { fpsVal.textContent = fps.value; updateEstimate(); });
   quality.addEventListener('input', () => { qualVal.textContent = quality.value; });
-  loopCheck.addEventListener('change', () => { loopSwitch.style.background = loopCheck.checked ? 'var(--amber)' : 'var(--line)'; loopSwitch.style.setProperty('--x', loopCheck.checked ? '17px' : '0'); loopSwitch.querySelector && null; });
-  // manual switch visuals (checkbox is hidden, keep in sync)
+
   function syncSwitch(){
     loopSwitch.style.background = loopCheck.checked ? 'var(--amber)' : 'var(--line)';
-    loopSwitch.style.setProperty('--knob', loopCheck.checked ? '17px' : '0px');
+    loopSwitch.style.setProperty('--knob', loopCheck.checked ? '22px' : '0px');
   }
-  loopSwitch.addEventListener('click', () => { loopCheck.checked = !loopCheck.checked; syncSwitch(); });
+  loopSwitch.addEventListener('click', e => { e.preventDefault(); loopCheck.checked = !loopCheck.checked; syncSwitch(); });
   syncSwitch();
   const styleKnob = document.createElement('style');
   styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
@@ -545,6 +570,15 @@
     }
     if (video.paused) video.play().catch(() => {});
     loopRafId = requestAnimationFrame(loopTick);
+  }
+
+  function stopPreviewLoop(){
+    previewLoop = false;
+    if (loopRafId) cancelAnimationFrame(loopRafId);
+    loopRafId = null;
+    video.playbackRate = 1;
+    loopPreviewBtn.classList.remove('active');
+    loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
   }
 
   loopPreviewBtn.addEventListener('click', () => {
@@ -568,14 +602,28 @@
       const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
       video.addEventListener('seeked', onSeeked);
       video.currentTime = t;
-      // fallback in case 'seeked' doesn't fire for identical times
-      setTimeout(resolve, 400);
+      setTimeout(resolve, 500);
     });
+  }
+
+  // --- worker gif.js chargé en local (blob) pour éviter les blocages cross-origin ---
+  let workerBlobUrlPromise = null;
+  function getWorkerScriptUrl(){
+    if (!workerBlobUrlPromise){
+      workerBlobUrlPromise = fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js')
+        .then(r => { if (!r.ok) throw new Error('fetch worker failed'); return r.text(); })
+        .then(text => URL.createObjectURL(new Blob([text], { type: 'application/javascript' })))
+        .catch(() => 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+    }
+    return workerBlobUrlPromise;
   }
 
   convertBtn.addEventListener('click', async () => {
     stopPreviewLoop();
     video.pause();
+    progressError.style.display = 'none';
+    progressError.textContent = '';
+
     const s = trimStart;
     const e = trimEnd;
     const fpsV = parseInt(fps.value, 10);
@@ -606,50 +654,68 @@
     progressPct.textContent = '0%';
     outputPanel.style.display = 'none';
 
-    const gif = new GIF({
-      workers: 3,
-      quality: q,
-      width: outW,
-      height: outH,
-      workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js',
-      repeat: loop ? 0 : -1
-    });
+    try {
+      progressStage.textContent = 'Préparation de l’encodeur…';
+      const workerScriptUrl = await getWorkerScriptUrl();
 
-    for (let i = 0; i < times.length; i++){
-      await seekTo(times[i]);
-      ctx.drawImage(video, 0, 0, outW, outH);
-      gif.addFrame(ctx, { copy: true, delay: frameDelay });
-      const pct = Math.round(((i + 1) / times.length) * 50);
-      progressFill.style.width = pct + '%';
-      progressPct.textContent = pct + '%';
-    }
+      const gif = new GIF({
+        workers: 2,
+        quality: q,
+        width: outW,
+        height: outH,
+        workerScript: workerScriptUrl,
+        repeat: loop ? 0 : -1
+      });
 
-    progressStage.textContent = 'Encodage du GIF…';
+      // watchdog : si rien ne se passe après 12s, on prévient plutôt que de rester bloqué
+      let watchdog = setTimeout(() => {
+        progressError.textContent = "L'encodage semble bloqué (souvent un souci réseau avec le composant gif.js). Réessaie, ou vérifie ta connexion.";
+        progressError.style.display = 'block';
+      }, 12000);
 
-    gif.on('progress', p => {
-      const pct = 50 + Math.round(p * 50);
-      progressFill.style.width = pct + '%';
-      progressPct.textContent = pct + '%';
-    });
+      gif.on('progress', p => {
+        clearTimeout(watchdog);
+        progressStage.textContent = 'Encodage du GIF…';
+        const pct = 45 + Math.round(p * 55);
+        progressFill.style.width = pct + '%';
+        progressPct.textContent = pct + '%';
+      });
 
-    gif.on('finished', blob => {
-      const url = URL.createObjectURL(blob);
-      gifResult.src = url;
-      downloadBtn.href = url;
-      metaSize.textContent = (blob.size / 1024 / 1024 < 1)
-        ? Math.round(blob.size / 1024) + ' Ko'
-        : (blob.size / 1024 / 1024).toFixed(2) + ' Mo';
-      metaDims.textContent = outW + ' × ' + outH + ' px';
-      metaFrames.textContent = times.length;
+      gif.on('finished', blob => {
+        clearTimeout(watchdog);
+        const url = URL.createObjectURL(blob);
+        gifResult.src = url;
+        downloadBtn.href = url;
+        metaSize.textContent = (blob.size / 1024 / 1024 < 1)
+          ? Math.round(blob.size / 1024) + ' Ko'
+          : (blob.size / 1024 / 1024).toFixed(2) + ' Mo';
+        metaDims.textContent = outW + ' × ' + outH + ' px';
+        metaFrames.textContent = times.length;
 
-      outputPanel.style.display = 'block';
-      progressWrap.style.display = 'none';
+        outputPanel.style.display = 'block';
+        progressWrap.style.display = 'none';
+        convertBtn.disabled = false;
+        convertBtn.textContent = 'Générer le GIF';
+        outputPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+
+      progressStage.textContent = 'Capture des images…';
+      for (let i = 0; i < times.length; i++){
+        await seekTo(times[i]);
+        ctx.drawImage(video, 0, 0, outW, outH);
+        gif.addFrame(ctx, { copy: true, delay: frameDelay });
+        const pct = Math.round(((i + 1) / times.length) * 45);
+        progressFill.style.width = pct + '%';
+        progressPct.textContent = pct + '%';
+      }
+
+      gif.render();
+    } catch (err){
+      progressError.textContent = 'Une erreur est survenue pendant la génération : ' + (err && err.message ? err.message : err);
+      progressError.style.display = 'block';
       convertBtn.disabled = false;
       convertBtn.textContent = 'Générer le GIF';
-      outputPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    });
-
-    gif.render();
+    }
   });
 
   updateEstimate();
