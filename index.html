@@ -108,7 +108,7 @@
     position:relative;
     height:34px;
     border-radius:6px;
-    margin:14px 16px 6px;
+    margin:14px 24px 6px;
     background:
       repeating-linear-gradient(90deg, #0e1216 0 8px, #171d23 8px 16px);
     border:1px solid var(--line);
@@ -129,24 +129,27 @@
     border-right:2px solid var(--amber);
   }
 
-  .trim-track{position:relative;height:44px;margin:2px 0 0;padding:0 16px;}
+  .trim-track{
+    position:relative;height:56px;margin:2px 0 0;padding:0 24px;
+    touch-action:none;cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
   .trim-handle{
     position:absolute;top:0;
-    width:44px;height:44px;margin-left:-22px;
+    width:44px;height:56px;margin-left:-22px;
     display:flex;align-items:center;justify-content:center;
-    touch-action:none;
-    cursor:grab;
-    z-index:2;
+    pointer-events:none;
   }
-  .trim-handle:active, .trim-handle.active{cursor:grabbing;z-index:3;}
   .trim-handle .handle-dot{
-    width:28px;height:28px;border-radius:50%;
+    width:26px;height:26px;border-radius:50%;
     background:var(--amber);border:3px solid #14181c;
     box-shadow:0 0 0 1px var(--amber), 0 2px 6px rgba(0,0,0,.4);
-    pointer-events:none;
-    transition:transform .1s;
+    transition:transform .1s, box-shadow .1s;
   }
-  .trim-handle.active .handle-dot{transform:scale(1.12);}
+  .trim-handle.active .handle-dot{
+    transform:scale(1.25);
+    box-shadow:0 0 0 1px var(--amber), 0 0 0 6px rgba(255,157,61,.25), 0 2px 6px rgba(0,0,0,.4);
+  }
 
   .timecodes{
     display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;
@@ -405,7 +408,8 @@
 
   function stopPreviewLoop(){
     previewLoop = false;
-    seekingBack = false;
+    if (loopRafId) cancelAnimationFrame(loopRafId);
+    loopRafId = null;
     video.playbackRate = 1;
     loopPreviewBtn.classList.remove('active');
     loopPreviewBtn.textContent = '▶ Lire la sélection en boucle';
@@ -457,42 +461,53 @@
     updateEstimate();
   }
 
-  // --- glisser-déposer des poignées (pointer events : souris, tactile, stylet) ---
-  function attachHandleDrag(handle, isStart){
-    handle.addEventListener('pointerdown', e => {
-      e.preventDefault();
-      handle.setPointerCapture(e.pointerId);
-      handle.classList.add('active');
+  // --- glisser sur la piste : on attrape la poignée la plus proche, où que le doigt touche ---
+  let activeHandle = null; // 'start' | 'end' | null
 
-      const onMove = ev => {
-        if (!duration) return;
-        const rect = trimTrack.getBoundingClientRect();
-        let ratio = (ev.clientX - rect.left) / rect.width;
-        ratio = Math.min(1, Math.max(0, ratio));
-        let t = ratio * duration;
-        if (isStart){
-          trimStart = Math.min(t, trimEnd - 0.2 < 0 ? 0 : trimEnd - 0.2);
-          trimStart = Math.max(0, trimStart);
-        } else {
-          trimEnd = Math.max(t, trimStart + 0.2);
-          trimEnd = Math.min(duration, trimEnd);
-        }
-        video.currentTime = isStart ? trimStart : trimEnd;
-        updateTrimUI();
-      };
-      const onUp = ev => {
-        handle.classList.remove('active');
-        handle.removeEventListener('pointermove', onMove);
-        handle.removeEventListener('pointerup', onUp);
-        handle.removeEventListener('pointercancel', onUp);
-      };
-      handle.addEventListener('pointermove', onMove);
-      handle.addEventListener('pointerup', onUp);
-      handle.addEventListener('pointercancel', onUp);
-    });
+  function clamp(v, min, max){ return Math.min(max, Math.max(min, v)); }
+
+  function ratioToTime(clientX){
+    const rect = trimTrack.getBoundingClientRect();
+    const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+    return ratio * duration;
   }
-  attachHandleDrag(handleStart, true);
-  attachHandleDrag(handleEnd, false);
+
+  function moveActiveHandle(t){
+    if (activeHandle === 'start'){
+      trimStart = clamp(t, 0, Math.max(0, trimEnd - 0.2));
+      video.currentTime = trimStart;
+    } else if (activeHandle === 'end'){
+      trimEnd = clamp(t, Math.min(duration, trimStart + 0.2), duration);
+      video.currentTime = trimEnd;
+    }
+    updateTrimUI();
+  }
+
+  function setActiveHandleVisual(){
+    handleStart.classList.toggle('active', activeHandle === 'start');
+    handleEnd.classList.toggle('active', activeHandle === 'end');
+  }
+
+  trimTrack.addEventListener('pointerdown', e => {
+    if (!duration) return;
+    e.preventDefault();
+    trimTrack.setPointerCapture(e.pointerId);
+    const t = ratioToTime(e.clientX);
+    activeHandle = Math.abs(t - trimStart) <= Math.abs(t - trimEnd) ? 'start' : 'end';
+    setActiveHandleVisual();
+    moveActiveHandle(t);
+  });
+  trimTrack.addEventListener('pointermove', e => {
+    if (!activeHandle) return;
+    e.preventDefault();
+    moveActiveHandle(ratioToTime(e.clientX));
+  });
+  function releaseHandle(){
+    activeHandle = null;
+    setActiveHandleVisual();
+  }
+  trimTrack.addEventListener('pointerup', releaseHandle);
+  trimTrack.addEventListener('pointercancel', releaseHandle);
 
   function updateEstimate(){
     const fpsV = parseFloat(fps.value), spd = parseFloat(speed.value);
@@ -520,8 +535,17 @@
   styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
   document.head.appendChild(styleKnob);
 
-  // --- lecture en boucle de la sélection ---
-  let seekingBack = false;
+  // --- lecture en boucle de la sélection, à la vitesse réglée ---
+  let loopRafId = null;
+
+  function loopTick(){
+    if (!previewLoop) return;
+    if (video.currentTime >= trimEnd - 0.02 || video.currentTime < trimStart - 0.02){
+      video.currentTime = trimStart;
+    }
+    if (video.paused) video.play().catch(() => {});
+    loopRafId = requestAnimationFrame(loopTick);
+  }
 
   loopPreviewBtn.addEventListener('click', () => {
     if (previewLoop){
@@ -530,29 +554,12 @@
       return;
     }
     previewLoop = true;
-    seekingBack = false;
     loopPreviewBtn.classList.add('active');
     loopPreviewBtn.textContent = '⏸ Arrêter la boucle';
     video.playbackRate = parseFloat(speed.value);
     video.currentTime = trimStart;
     video.play().catch(() => {});
-  });
-
-  video.addEventListener('timeupdate', () => {
-    if (!previewLoop || seekingBack) return;
-    if (video.currentTime >= trimEnd - 0.05 || video.currentTime < trimStart - 0.05){
-      seekingBack = true;
-      video.currentTime = trimStart;
-    }
-  });
-
-  video.addEventListener('seeked', () => {
-    if (!seekingBack) return;
-    seekingBack = false;
-    if (previewLoop){
-      video.playbackRate = parseFloat(speed.value);
-      video.play().catch(() => {});
-    }
+    loopRafId = requestAnimationFrame(loopTick);
   });
 
   // --- seek helper ---
