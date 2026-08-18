@@ -17,8 +17,10 @@
     --radius: 12px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
+  html{overflow-x:hidden;}
+  html,body{margin:0;padding:0;max-width:100%;}
   body{
+    overflow-x:hidden;
     background:
       radial-gradient(1200px 600px at 15% -10%, #1c232c 0%, transparent 60%),
       var(--bg);
@@ -140,7 +142,6 @@
     position:absolute;top:-6px;bottom:-6px;
     border-top:3px solid var(--amber);border-bottom:3px solid var(--amber);
     box-sizing:border-box;pointer-events:none;
-    box-shadow:0 0 0 100vmax rgba(0,0,0,0); /* placeholder, no-op safe */
   }
   .grip{
     position:absolute;top:-6px;bottom:-6px;
@@ -566,24 +567,40 @@
   // --- la lecture (bouton natif du lecteur) reste toujours cantonnée à la sélection ---
   // Un seul seek à la fois : c'est ce qui provoquait le blocage vidéo précédemment
   // (relancer un seek/play avant la fin du précédent bloque certains téléphones).
+  let seekFallbackTimer = null;
+
+  function requestLoopSeek(){
+    seekInFlight = true;
+    video.currentTime = trimStart;
+    // Filet de sécurité : si l'événement 'seeked' ne se déclenche jamais
+    // (ça arrive quand la position demandée est déjà la position actuelle),
+    // on débloque quand même après un court délai au lieu de rester figé.
+    clearTimeout(seekFallbackTimer);
+    seekFallbackTimer = setTimeout(() => {
+      if (seekInFlight){
+        seekInFlight = false;
+        if (video.paused && !video.ended) video.play().catch(() => {});
+      }
+    }, 300);
+  }
+
   video.addEventListener('play', () => {
     video.playbackRate = parseFloat(speed.value);
     if (video.currentTime < trimStart - 0.05 || video.currentTime >= trimEnd - 0.02){
-      seekInFlight = true;
-      video.currentTime = trimStart;
+      requestLoopSeek();
     }
   });
 
   video.addEventListener('timeupdate', () => {
     if (video.paused || seekInFlight) return;
     if (video.currentTime >= trimEnd - 0.02 || video.currentTime < trimStart - 0.02){
-      seekInFlight = true;
-      video.currentTime = trimStart;
+      requestLoopSeek();
     }
   });
 
   video.addEventListener('seeked', () => {
     if (!seekInFlight) return;
+    clearTimeout(seekFallbackTimer);
     seekInFlight = false;
     if (video.paused && !video.ended) video.play().catch(() => {});
   });
