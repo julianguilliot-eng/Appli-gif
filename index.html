@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>GIF Lab — vidéo vers GIF animé</title>
 <style>
   :root{
@@ -91,7 +91,8 @@
   #dropzone.drag{border-color:var(--amber);background:rgba(255,157,61,.06);color:var(--text);}
   #dropzone strong{color:var(--text);display:block;font-size:16px;margin-bottom:2px;}
 
-  video{width:100%;display:block;border-radius:10px;background:#000;}
+  video{width:100%;max-width:100%;display:block;border-radius:10px;background:#000;}
+  img,canvas{max-width:100%;}
   #videoBox{display:none;margin-top:16px;}
 
   /* --- lecteur boucle --- */
