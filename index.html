@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1057</span>
+    <span class="badge">100% local · build 20260819-1112</span>
   </header>
 
   <div class="grid">
@@ -590,15 +590,22 @@
   // sur certains navigateurs mobiles) — c'est ce qui bloquait la boucle silencieusement.
   function jumpTo(t){
     isSeeking = true;
+    lastJumpAt = Date.now();
     video.currentTime = t;
     clearTimeout(seekSafetyTimer);
     seekSafetyTimer = setTimeout(() => { isSeeking = false; }, 250);
   }
 
+  let lastJumpAt = 0;
+
   function loopFrame(){
     if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
-    if (!isSeeking && !video.paused){
-      if (video.currentTime >= trimEnd - 0.02 || video.currentTime < trimStart - 0.05){
+    // Temps de grâce après un saut : le navigateur atterrit parfois sur l'image-clé la
+    // plus proche (légèrement avant la cible), ce qui déclenchait un nouveau saut en boucle
+    // sans jamais laisser la vidéo avancer. On laisse la lecture se stabiliser d'abord.
+    const settled = Date.now() - lastJumpAt > 350;
+    if (settled && !isSeeking && !video.paused){
+      if (video.currentTime >= trimEnd - 0.02){
         jumpTo(trimStart);
       }
     }
