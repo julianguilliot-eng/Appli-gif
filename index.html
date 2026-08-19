@@ -96,7 +96,8 @@
   #videoBox{display:none;margin-top:16px;}
 
   /* --- lecteur boucle --- */
-  #videoBox .hint-strong{margin-top:14px;font-size:13.5px;color:var(--teal);text-align:center;}
+  #videoBox .play-btn{margin-top:14px;}
+  .play-btn.playing{background:var(--panel-2);color:var(--text);border:1px solid var(--amber);}
 
   /* --- duration readout --- */
   .duration-readout{
@@ -276,9 +277,11 @@
         <input type="file" id="fileInput" accept="video/*" style="display:none">
 
         <div id="videoBox">
-          <video id="video" controls muted playsinline></video>
+          <video id="video" muted playsinline webkit-playsinline></video>
 
-          <p class="hint-strong">▶ La lecture (bouton du lecteur) rejoue uniquement la sélection, en boucle, à la vitesse réglée.</p>
+          <button class="btn play-btn" id="playPauseBtn" type="button">▶ Lire la sélection en boucle</button>
+
+
 
           <div class="duration-readout">
             <div class="big" id="durLabel">0.0s</div>
@@ -400,6 +403,7 @@
   const qualVal = document.getElementById('qualVal');
   const loopCheck = document.getElementById('loopCheck');
   const loopSwitch = document.getElementById('loopSwitch');
+  const playPauseBtn = document.getElementById('playPauseBtn');
   const convertBtn = document.getElementById('convertBtn');
   const progressWrap = document.getElementById('progressWrap');
   const progressStage = document.getElementById('progressStage');
@@ -438,6 +442,8 @@
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     shouldLoop = false;
+    playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+    playPauseBtn.classList.remove('playing');
     thumbStrip.innerHTML = '';
     thumbMask.classList.add('loading');
     videoBox.style.display = 'block';
@@ -520,8 +526,8 @@
     if (!duration) return;
     e.preventDefault();
     trimTrack.setPointerCapture(e.pointerId);
-    video.pause();
     shouldLoop = false;
+    video.pause();
     const t = ratioToTime(e.clientX);
     activeHandle = Math.abs(t - trimStart) <= Math.abs(t - trimEnd) ? 'start' : 'end';
     trimTrack.classList.add('active');
@@ -591,7 +597,19 @@
     }
   }
 
+  playPauseBtn.addEventListener('click', () => {
+    if (!duration) return;
+    if (video.paused){
+      video.play().catch(() => {});
+    } else {
+      shouldLoop = false;
+      video.pause();
+    }
+  });
+
   video.addEventListener('play', () => {
+    playPauseBtn.textContent = '⏸ Mettre en pause';
+    playPauseBtn.classList.add('playing');
     shouldLoop = true;
     video.playbackRate = parseFloat(speed.value);
     if (video.currentTime < trimStart - 0.05 || video.currentTime >= trimEnd - 0.02){
@@ -607,10 +625,16 @@
     if (Date.now() - lastSeekAt > 600){
       shouldLoop = false;
     }
+    if (!shouldLoop){
+      playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+      playPauseBtn.classList.remove('playing');
+    }
   });
 
   video.addEventListener('ended', () => {
     shouldLoop = false;
+    playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+    playPauseBtn.classList.remove('playing');
   });
 
   // --- seek helper ---
