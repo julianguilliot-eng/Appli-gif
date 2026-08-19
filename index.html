@@ -98,6 +98,13 @@
   /* --- lecteur boucle --- */
   #videoBox .play-btn{margin-top:14px;}
   .play-btn.playing{background:var(--panel-2);color:var(--text);border:1px solid var(--amber);}
+  .debug-line{
+    margin-top:8px;text-align:center;
+    font-family:ui-monospace,'SF Mono','Menlo','Consolas',monospace;
+    font-size:11.5px;color:var(--muted);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+    padding:6px 8px;
+  }
 
   /* --- duration readout --- */
   .duration-readout{
@@ -280,6 +287,7 @@
           <video id="video" muted playsinline webkit-playsinline></video>
 
           <button class="btn play-btn" id="playPauseBtn" type="button">▶ Lire la sélection en boucle</button>
+          <div class="debug-line" id="debugLine">—</div>
 
 
 
@@ -404,6 +412,7 @@
   const loopCheck = document.getElementById('loopCheck');
   const loopSwitch = document.getElementById('loopSwitch');
   const playPauseBtn = document.getElementById('playPauseBtn');
+  const debugLine = document.getElementById('debugLine');
   const convertBtn = document.getElementById('convertBtn');
   const progressWrap = document.getElementById('progressWrap');
   const progressStage = document.getElementById('progressStage');
@@ -570,62 +579,71 @@
   styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
   document.head.appendChild(styleKnob);
 
-  // --- la lecture (bouton natif du lecteur) reste toujours cantonnée à la sélection ---
-  // Sondage régulier plutôt que réaction aux événements du lecteur : certains navigateurs
-  // mettent la vidéo en pause pendant un saut sans le signaler clairement, ce qui bloquait
-  // la lecture avec l'ancienne approche basée sur les événements 'seeked'.
+  // --- lecture de la sélection en boucle, pilotée entièrement par notre bouton ---
   let shouldLoop = false;
-  let loopInterval = null;
-  let lastSeekAt = 0;
-  let lastPlayRetryAt = 0;
+  let loopRafId = null;
+  let isSeeking = false;
+  let seekSafetyTimer = null;
 
-  function loopStep(){
-    if (!shouldLoop) return;
-    if (video.paused){
-      // Le navigateur a probablement suspendu la lecture pendant/après le saut : on relance,
-      // sans spammer d'appels à play() (max une tentative toutes les 400ms).
-      const now = Date.now();
-      if (now - lastPlayRetryAt > 400){
-        lastPlayRetryAt = now;
-        video.play().catch(() => {});
+  // Point d'entrée unique pour tout saut : pose le verrou, ET garantit qu'il sera
+  // toujours relâché même si l'événement 'seeked' ne se déclenche jamais (ça arrive
+  // sur certains navigateurs mobiles) — c'est ce qui bloquait la boucle silencieusement.
+  function jumpTo(t){
+    isSeeking = true;
+    video.currentTime = t;
+    clearTimeout(seekSafetyTimer);
+    seekSafetyTimer = setTimeout(() => { isSeeking = false; }, 250);
+  }
+
+  function loopFrame(){
+    if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
+    if (!isSeeking && !video.paused){
+      if (video.currentTime >= trimEnd - 0.02 || video.currentTime < trimStart - 0.05){
+        jumpTo(trimStart);
       }
-      return;
     }
-    if (video.currentTime >= trimEnd - 0.02 || video.currentTime < trimStart - 0.05){
-      lastSeekAt = Date.now();
-      video.currentTime = trimStart;
+    updateDebug();
+    loopRafId = requestAnimationFrame(loopFrame);
+  }
+
+  function updateDebug(){
+    if (debugLine) {
+      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's · sélection ' +
+        trimStart.toFixed(2) + '–' + trimEnd.toFixed(2) + 's · ' +
+        (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '');
     }
   }
+
+  video.addEventListener('seeked', () => { clearTimeout(seekSafetyTimer); isSeeking = false; });
 
   playPauseBtn.addEventListener('click', () => {
     if (!duration) return;
     if (video.paused){
-      video.play().catch(() => {});
+      shouldLoop = true;
+      playPauseBtn.textContent = '⏸ Mettre en pause';
+      playPauseBtn.classList.add('playing');
+      video.playbackRate = parseFloat(speed.value);
+      const outOfBounds = video.currentTime < trimStart - 0.05 || video.currentTime >= trimEnd - 0.02;
+      if (outOfBounds) jumpTo(trimStart);
+      const startPromise = outOfBounds
+        ? new Promise(res => {
+            const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res(); };
+            video.addEventListener('seeked', onSeeked);
+            setTimeout(res, 400);
+          })
+        : Promise.resolve();
+      startPromise.then(() => video.play()).then(() => {
+        if (!loopRafId) loopRafId = requestAnimationFrame(loopFrame);
+      }).catch(err => {
+        progressError.textContent = 'La lecture a été refusée par le navigateur : ' + (err && err.message ? err.message : err);
+        progressError.style.display = 'block';
+        shouldLoop = false;
+        playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+        playPauseBtn.classList.remove('playing');
+      });
     } else {
       shouldLoop = false;
       video.pause();
-    }
-  });
-
-  video.addEventListener('play', () => {
-    playPauseBtn.textContent = '⏸ Mettre en pause';
-    playPauseBtn.classList.add('playing');
-    shouldLoop = true;
-    video.playbackRate = parseFloat(speed.value);
-    if (video.currentTime < trimStart - 0.05 || video.currentTime >= trimEnd - 0.02){
-      lastSeekAt = Date.now();
-      video.currentTime = trimStart;
-    }
-    if (!loopInterval) loopInterval = setInterval(loopStep, 150);
-  });
-
-  video.addEventListener('pause', () => {
-    // Une pause qui suit de très près un de nos sauts est probablement causée par le
-    // navigateur lui-même (pas par l'utilisateur) : on ne coupe la boucle que sinon.
-    if (Date.now() - lastSeekAt > 600){
-      shouldLoop = false;
-    }
-    if (!shouldLoop){
       playPauseBtn.textContent = '▶ Lire la sélection en boucle';
       playPauseBtn.classList.remove('playing');
     }
