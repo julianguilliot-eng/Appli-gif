@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1158</span>
+    <span class="badge">100% local · build 20260819-1215</span>
   </header>
 
   <div class="grid">
@@ -451,6 +451,7 @@
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     shouldLoop = false;
+    maxPosSeen = 0;
     playPauseBtn.textContent = '▶ Lire la sélection en boucle';
     playPauseBtn.classList.remove('playing');
     thumbStrip.innerHTML = '';
@@ -602,11 +603,13 @@
 
   let loopFrameCount = 0;
   let loopLastError = '';
+  let maxPosSeen = 0;
 
   function loopFrame(){
     try {
       if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
       loopFrameCount++;
+      if (video.currentTime > maxPosSeen) maxPosSeen = video.currentTime;
       // Temps de grâce après un saut : le navigateur atterrit parfois sur l'image-clé la
       // plus proche (légèrement avant la cible), ce qui déclenchait un nouveau saut en boucle
       // sans jamais laisser la vidéo avancer. On laisse la lecture se stabiliser d'abord.
@@ -629,7 +632,7 @@
 
   function updateDebug(){
     if (debugLine) {
-      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's · fin ' + trimEnd.toFixed(2) +
+      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's (max ' + maxPosSeen.toFixed(2) + 's) · fin ' + trimEnd.toFixed(2) +
         's · dur ' + duration.toFixed(2) + 's · ' +
         (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '') +
         ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' f#' + loopFrameCount + ' j#' + jumpCount +
