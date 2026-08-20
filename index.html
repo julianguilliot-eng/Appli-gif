@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1112</span>
+    <span class="badge">100% local · build 20260819-1135</span>
   </header>
 
   <div class="grid">
@@ -598,26 +598,40 @@
 
   let lastJumpAt = 0;
 
+  let loopFrameCount = 0;
+  let loopLastError = '';
+
   function loopFrame(){
-    if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
-    // Temps de grâce après un saut : le navigateur atterrit parfois sur l'image-clé la
-    // plus proche (légèrement avant la cible), ce qui déclenchait un nouveau saut en boucle
-    // sans jamais laisser la vidéo avancer. On laisse la lecture se stabiliser d'abord.
-    const settled = Date.now() - lastJumpAt > 350;
-    if (settled && !isSeeking && !video.paused){
-      if (video.currentTime >= trimEnd - 0.02){
-        jumpTo(trimStart);
+    try {
+      if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
+      loopFrameCount++;
+      // Temps de grâce après un saut : le navigateur atterrit parfois sur l'image-clé la
+      // plus proche (légèrement avant la cible), ce qui déclenchait un nouveau saut en boucle
+      // sans jamais laisser la vidéo avancer. On laisse la lecture se stabiliser d'abord.
+      const settled = Date.now() - lastJumpAt > 350;
+      if (settled && !isSeeking && !video.paused){
+        if (video.currentTime >= trimEnd - 0.02){
+          jumpTo(trimStart);
+        }
       }
+      updateDebug();
+      loopRafId = requestAnimationFrame(loopFrame);
+    } catch (err){
+      // Si la boucle plante, on l'affiche au lieu de la laisser mourir en silence
+      // (une requestAnimationFrame qui plante ne se relance jamais toute seule).
+      loopLastError = (err && err.message) ? err.message : String(err);
+      updateDebug();
+      loopRafId = requestAnimationFrame(loopFrame);
     }
-    updateDebug();
-    loopRafId = requestAnimationFrame(loopFrame);
   }
 
   function updateDebug(){
     if (debugLine) {
       debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's · sélection ' +
         trimStart.toFixed(2) + '–' + trimEnd.toFixed(2) + 's · ' +
-        (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '');
+        (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '') +
+        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' #' + loopFrameCount +
+        (loopLastError ? ' · ERREUR: ' + loopLastError : '');
     }
   }
 
