@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1215</span>
+    <span class="badge">100% local · build 20260819-1240</span>
   </header>
 
   <div class="grid">
@@ -581,66 +581,50 @@
   document.head.appendChild(styleKnob);
 
   // --- lecture de la sélection en boucle, pilotée entièrement par notre bouton ---
+  // IMPORTANT : sur certains téléphones, video.currentTime se fige après un saut
+  // programmé alors que la vidéo continue réellement de jouer à l'écran (bug WebKit
+  // constaté). On ne s'y fie donc plus pour détecter la fin de la sélection : on estime
+  // la position à partir du temps réel écoulé depuis le dernier point de départ connu.
   let shouldLoop = false;
   let loopRafId = null;
-  let isSeeking = false;
-  let seekSafetyTimer = null;
-
-  // Point d'entrée unique pour tout saut : pose le verrou, ET garantit qu'il sera
-  // toujours relâché même si l'événement 'seeked' ne se déclenche jamais (ça arrive
-  // sur certains navigateurs mobiles) — c'est ce qui bloquait la boucle silencieusement.
   let jumpCount = 0;
-  function jumpTo(t){
-    isSeeking = true;
-    lastJumpAt = Date.now();
-    jumpCount++;
-    video.currentTime = t;
-    clearTimeout(seekSafetyTimer);
-    seekSafetyTimer = setTimeout(() => { isSeeking = false; }, 250);
+  let loopFrameCount = 0;
+  let maxPosSeen = 0;
+  let estStart = 0;      // position vidéo au moment où l'estimation a démarré
+  let estWallClock = 0;  // horloge réelle (ms) à ce même moment
+
+  function estimatedPos(){
+    const rate = parseFloat(speed.value) || 1;
+    return estStart + ((performance.now() - estWallClock) / 1000) * rate;
   }
 
-  let lastJumpAt = 0;
-
-  let loopFrameCount = 0;
-  let loopLastError = '';
-  let maxPosSeen = 0;
+  function jumpTo(t){
+    jumpCount++;
+    video.currentTime = t;       // correction visuelle, best-effort
+    estStart = t;                 // ce qui compte vraiment pour la détection
+    estWallClock = performance.now();
+  }
 
   function loopFrame(){
-    try {
-      if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
-      loopFrameCount++;
-      if (video.currentTime > maxPosSeen) maxPosSeen = video.currentTime;
-      // Temps de grâce après un saut : le navigateur atterrit parfois sur l'image-clé la
-      // plus proche (légèrement avant la cible), ce qui déclenchait un nouveau saut en boucle
-      // sans jamais laisser la vidéo avancer. On laisse la lecture se stabiliser d'abord.
-      const settled = Date.now() - lastJumpAt > 350;
-      if (settled && !isSeeking && !video.paused){
-        if (video.currentTime >= trimEnd - 0.02){
-          jumpTo(trimStart);
-        }
-      }
-      updateDebug();
-      loopRafId = requestAnimationFrame(loopFrame);
-    } catch (err){
-      // Si la boucle plante, on l'affiche au lieu de la laisser mourir en silence
-      // (une requestAnimationFrame qui plante ne se relance jamais toute seule).
-      loopLastError = (err && err.message) ? err.message : String(err);
-      updateDebug();
-      loopRafId = requestAnimationFrame(loopFrame);
+    if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
+    loopFrameCount++;
+    const est = estimatedPos();
+    if (est > maxPosSeen) maxPosSeen = est;
+    if (!video.paused && est >= trimEnd - 0.02){
+      jumpTo(trimStart);
     }
+    updateDebug();
+    loopRafId = requestAnimationFrame(loopFrame);
   }
 
   function updateDebug(){
     if (debugLine) {
-      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's (max ' + maxPosSeen.toFixed(2) + 's) · fin ' + trimEnd.toFixed(2) +
-        's · dur ' + duration.toFixed(2) + 's · ' +
-        (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '') +
-        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' f#' + loopFrameCount + ' j#' + jumpCount +
-        (loopLastError ? ' · ERREUR: ' + loopLastError : '');
+      debugLine.textContent = 'estimé ' + estimatedPos().toFixed(2) + 's (max ' + maxPosSeen.toFixed(2) +
+        's) · réel(video.currentTime) ' + video.currentTime.toFixed(2) + 's · fin ' + trimEnd.toFixed(2) +
+        's · ' + (video.paused ? 'en pause' : 'lecture') +
+        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' f#' + loopFrameCount + ' j#' + jumpCount;
     }
   }
-
-  video.addEventListener('seeked', () => { clearTimeout(seekSafetyTimer); isSeeking = false; });
 
   playPauseBtn.addEventListener('click', () => {
     if (!duration) return;
@@ -649,16 +633,10 @@
       playPauseBtn.textContent = '⏸ Mettre en pause';
       playPauseBtn.classList.add('playing');
       video.playbackRate = parseFloat(speed.value);
-      const outOfBounds = video.currentTime < trimStart - 0.05 || video.currentTime >= trimEnd - 0.02;
-      if (outOfBounds) jumpTo(trimStart);
-      const startPromise = outOfBounds
-        ? new Promise(res => {
-            const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res(); };
-            video.addEventListener('seeked', onSeeked);
-            setTimeout(res, 400);
-          })
-        : Promise.resolve();
-      startPromise.then(() => video.play()).then(() => {
+      // On repart toujours du début de la sélection : simple, prévisible, et on ne
+      // dépend plus de la valeur (potentiellement fausse) de video.currentTime pour savoir où on en est.
+      jumpTo(trimStart);
+      video.play().then(() => {
         if (!loopRafId) loopRafId = requestAnimationFrame(loopFrame);
       }).catch(err => {
         progressError.textContent = 'La lecture a été refusée par le navigateur : ' + (err && err.message ? err.message : err);
