@@ -91,7 +91,7 @@
   #dropzone.drag{border-color:var(--amber);background:rgba(255,157,61,.06);color:var(--text);}
   #dropzone strong{color:var(--text);display:block;font-size:16px;margin-bottom:2px;}
 
-  video{width:100%;max-width:100%;display:block;border-radius:10px;background:#000;}
+  video,#previewCanvas{width:100%;max-width:100%;display:block;border-radius:10px;background:#000;}
   img,canvas{max-width:100%;}
   #videoBox{display:none;margin-top:16px;}
 
@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1240</span>
+    <span class="badge">100% local · build 20260819-2105</span>
   </header>
 
   <div class="grid">
@@ -285,11 +285,10 @@
 
         <div id="videoBox">
           <video id="video" muted playsinline webkit-playsinline></video>
+          <canvas id="previewCanvas" style="display:none;"></canvas>
 
           <button class="btn play-btn" id="playPauseBtn" type="button">▶ Lire la sélection en boucle</button>
           <div class="debug-line" id="debugLine">—</div>
-
-
 
           <div class="duration-readout">
             <div class="big" id="durLabel">0.0s</div>
@@ -450,8 +449,11 @@
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
-    shouldLoop = false;
-    maxPosSeen = 0;
+    previewPlaying = false;
+    clearTimeout(previewTimer);
+    previewFrames = [];
+    previewCanvas.style.display = 'none';
+    video.style.display = 'block';
     playPauseBtn.textContent = '▶ Lire la sélection en boucle';
     playPauseBtn.classList.remove('playing');
     thumbStrip.innerHTML = '';
@@ -536,7 +538,7 @@
     if (!duration) return;
     e.preventDefault();
     trimTrack.setPointerCapture(e.pointerId);
-    shouldLoop = false;
+    if (previewPlaying) stopPreview();
     video.pause();
     const t = ratioToTime(e.clientX);
     activeHandle = Math.abs(t - trimStart) <= Math.abs(t - trimEnd) ? 'start' : 'end';
@@ -580,86 +582,109 @@
   styleKnob.textContent = '.switch::after{ transform: translateX(var(--knob,0px)); transition: transform .15s; }';
   document.head.appendChild(styleKnob);
 
-  // --- lecture de la sélection en boucle, pilotée entièrement par notre bouton ---
-  // IMPORTANT : sur certains téléphones, video.currentTime se fige après un saut
-  // programmé alors que la vidéo continue réellement de jouer à l'écran (bug WebKit
-  // constaté). On ne s'y fie donc plus pour détecter la fin de la sélection : on estime
-  // la position à partir du temps réel écoulé depuis le dernier point de départ connu.
-  let shouldLoop = false;
-  let loopRafId = null;
-  let jumpCount = 0;
-  let loopFrameCount = 0;
-  let maxPosSeen = 0;
-  let estStart = 0;      // position vidéo au moment où l'estimation a démarré
-  let estWallClock = 0;  // horloge réelle (ms) à ce même moment
+  // --- lecture de la sélection en boucle : rejouée nous-mêmes sur un canvas ---
+  // On extrait d'abord les images de la sélection (comme pour la génération du GIF,
+  // ce qui fonctionne de façon fiable), puis on les rejoue en boucle sur un canvas —
+  // sans jamais dépendre de la lecture/du saut du lecteur vidéo natif, qui s'est avéré
+  // peu fiable sur cet appareil pendant une lecture active.
+  const previewCanvas = document.getElementById('previewCanvas');
+  let previewFrames = [];
+  let previewPlaying = false;
+  let previewIndex = 0;
+  let previewTimer = null;
+  let previewDelay = 80;
 
-  function estimatedPos(){
-    const rate = parseFloat(speed.value) || 1;
-    return estStart + ((performance.now() - estWallClock) / 1000) * rate;
-  }
-
-  function jumpTo(t){
-    jumpCount++;
-    video.currentTime = t;       // correction visuelle, best-effort
-    estStart = t;                 // ce qui compte vraiment pour la détection
-    estWallClock = performance.now();
-  }
-
-  function loopFrame(){
-    if (!shouldLoop){ loopRafId = null; updateDebug(); return; }
-    loopFrameCount++;
-    const est = estimatedPos();
-    if (est > maxPosSeen) maxPosSeen = est;
-    if (!video.paused && est >= trimEnd - 0.02){
-      jumpTo(trimStart);
-    }
+  function stopPreview(){
+    previewPlaying = false;
+    clearTimeout(previewTimer);
+    previewCanvas.style.display = 'none';
+    video.style.display = 'block';
+    playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+    playPauseBtn.classList.remove('playing');
     updateDebug();
-    loopRafId = requestAnimationFrame(loopFrame);
   }
 
   function updateDebug(){
-    if (debugLine) {
-      debugLine.textContent = 'estimé ' + estimatedPos().toFixed(2) + 's (max ' + maxPosSeen.toFixed(2) +
-        's) · réel(video.currentTime) ' + video.currentTime.toFixed(2) + 's · fin ' + trimEnd.toFixed(2) +
-        's · ' + (video.paused ? 'en pause' : 'lecture') +
-        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' f#' + loopFrameCount + ' j#' + jumpCount;
+    if (!debugLine) return;
+    if (previewFrames.length){
+      debugLine.textContent = 'aperçu : image ' + (previewIndex + 1) + '/' + previewFrames.length +
+        ' · ' + (previewPlaying ? 'lecture' : 'en pause') + ' · ' + Math.round(1000 / previewDelay) + ' im/s';
+    } else {
+      debugLine.textContent = 'aperçu non généré';
     }
   }
 
-  playPauseBtn.addEventListener('click', () => {
-    if (!duration) return;
-    if (video.paused){
-      shouldLoop = true;
-      playPauseBtn.textContent = '⏸ Mettre en pause';
-      playPauseBtn.classList.add('playing');
-      video.playbackRate = parseFloat(speed.value);
-      // On repart toujours du début de la sélection : simple, prévisible, et on ne
-      // dépend plus de la valeur (potentiellement fausse) de video.currentTime pour savoir où on en est.
-      jumpTo(trimStart);
-      video.play().then(() => {
-        if (!loopRafId) loopRafId = requestAnimationFrame(loopFrame);
-      }).catch(err => {
-        progressError.textContent = 'La lecture a été refusée par le navigateur : ' + (err && err.message ? err.message : err);
-        progressError.style.display = 'block';
-        shouldLoop = false;
-        playPauseBtn.textContent = '▶ Lire la sélection en boucle';
-        playPauseBtn.classList.remove('playing');
-      });
-    } else {
-      shouldLoop = false;
-      video.pause();
-      playPauseBtn.textContent = '▶ Lire la sélection en boucle';
-      playPauseBtn.classList.remove('playing');
+  async function capturePreviewFrames(){
+    const fpsV = parseInt(fps.value, 10);
+    const spd = parseFloat(speed.value);
+    const step = (1 / fpsV) * spd;
+    const times = [];
+    for (let t = trimStart; t < trimEnd; t += step) times.push(t);
+    if (!times.length) times.push(trimStart);
+
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const pw = Math.min(480, vw || 480);
+    const ph = Math.round(pw * ((vh || 480) / (vw || 480)));
+    previewCanvas.width = pw;
+    previewCanvas.height = ph;
+    const pctx = previewCanvas.getContext('2d');
+
+    const frames = [];
+    for (let i = 0; i < times.length; i++){
+      await seekTo(times[i]);
+      pctx.drawImage(video, 0, 0, pw, ph);
+      let frame;
+      try {
+        frame = await createImageBitmap(previewCanvas);
+      } catch (e) {
+        frame = pctx.getImageData(0, 0, pw, ph);
+      }
+      frames.push(frame);
+      playPauseBtn.textContent = 'Préparation de l’aperçu… ' + Math.round(((i + 1) / times.length) * 100) + '%';
     }
+    previewDelay = Math.max(20, Math.round(1000 / fpsV));
+    return frames;
+  }
+
+  function playPreviewFrame(){
+    if (!previewPlaying) return;
+    const pctx = previewCanvas.getContext('2d');
+    const frame = previewFrames[previewIndex];
+    if (frame instanceof ImageData) pctx.putImageData(frame, 0, 0);
+    else pctx.drawImage(frame, 0, 0);
+    previewIndex = (previewIndex + 1) % previewFrames.length;
+    updateDebug();
+    previewTimer = setTimeout(playPreviewFrame, previewDelay);
+  }
+
+  playPauseBtn.addEventListener('click', async () => {
+    if (!duration) return;
+    if (previewPlaying){
+      stopPreview();
+      return;
+    }
+    playPauseBtn.disabled = true;
+    video.pause();
+    try {
+      previewFrames = await capturePreviewFrames();
+    } catch (err){
+      playPauseBtn.disabled = false;
+      playPauseBtn.textContent = '▶ Lire la sélection en boucle';
+      progressError.textContent = 'Impossible de préparer l’aperçu : ' + (err && err.message ? err.message : err);
+      progressError.style.display = 'block';
+      return;
+    }
+    playPauseBtn.disabled = false;
+    video.style.display = 'none';
+    previewCanvas.style.display = 'block';
+    playPauseBtn.textContent = '⏸ Mettre en pause';
+    playPauseBtn.classList.add('playing');
+    previewPlaying = true;
+    previewIndex = 0;
+    playPreviewFrame();
   });
 
-  video.addEventListener('ended', () => {
-    shouldLoop = false;
-    playPauseBtn.textContent = '▶ Lire la sélection en boucle';
-    playPauseBtn.classList.remove('playing');
-  });
 
-  // --- seek helper ---
   function seekTo(t){
     return new Promise(resolve => {
       const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
@@ -680,7 +705,7 @@
   }
 
   convertBtn.addEventListener('click', async () => {
-    shouldLoop = false;
+    if (previewPlaying) stopPreview();
     video.pause();
     progressError.style.display = 'none';
     progressError.textContent = '';
