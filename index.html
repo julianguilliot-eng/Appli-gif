@@ -268,7 +268,7 @@
         <p>Découpe, règle la vitesse, exporte un GIF animé — tout se passe dans ton navigateur.</p>
       </div>
     </div>
-    <span class="badge">100% local · build 20260819-1135</span>
+    <span class="badge">100% local · build 20260819-1158</span>
   </header>
 
   <div class="grid">
@@ -588,9 +588,11 @@
   // Point d'entrée unique pour tout saut : pose le verrou, ET garantit qu'il sera
   // toujours relâché même si l'événement 'seeked' ne se déclenche jamais (ça arrive
   // sur certains navigateurs mobiles) — c'est ce qui bloquait la boucle silencieusement.
+  let jumpCount = 0;
   function jumpTo(t){
     isSeeking = true;
     lastJumpAt = Date.now();
+    jumpCount++;
     video.currentTime = t;
     clearTimeout(seekSafetyTimer);
     seekSafetyTimer = setTimeout(() => { isSeeking = false; }, 250);
@@ -627,10 +629,10 @@
 
   function updateDebug(){
     if (debugLine) {
-      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's · sélection ' +
-        trimStart.toFixed(2) + '–' + trimEnd.toFixed(2) + 's · ' +
+      debugLine.textContent = 'pos ' + video.currentTime.toFixed(2) + 's · fin ' + trimEnd.toFixed(2) +
+        's · dur ' + duration.toFixed(2) + 's · ' +
         (video.paused ? 'en pause' : 'lecture') + (isSeeking ? ' · saut…' : '') +
-        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' #' + loopFrameCount +
+        ' · boucle:' + (shouldLoop ? 'ON' : 'OFF') + ' f#' + loopFrameCount + ' j#' + jumpCount +
         (loopLastError ? ' · ERREUR: ' + loopLastError : '');
     }
   }
